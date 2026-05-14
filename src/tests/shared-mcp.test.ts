@@ -54,10 +54,7 @@ import { uniqueDirectoryName } from "./helpers";
 
 describe("AssistantDirectory MCP — empty state", () => {
   it("listMcpToolDescriptors returns [] before any servers are registered", async () => {
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      uniqueDirectoryName()
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, uniqueDirectoryName());
 
     const descriptors = await directory.listMcpToolDescriptors(500);
     expect(descriptors).toEqual([]);
@@ -66,10 +63,7 @@ describe("AssistantDirectory MCP — empty state", () => {
   it("listMcpToolDescriptors handles the explicit timeout argument", async () => {
     // Smoke test for the wait/listTools path — even with no servers,
     // a 0ms timeout shouldn't throw on `waitForConnections`.
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      uniqueDirectoryName()
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, uniqueDirectoryName());
 
     const descriptors = await directory.listMcpToolDescriptors(0);
     expect(descriptors).toEqual([]);

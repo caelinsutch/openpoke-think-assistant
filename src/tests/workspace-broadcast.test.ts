@@ -44,23 +44,14 @@ describe("workspace broadcast", () => {
     // Prime the directory so onStart has fired and the workspace is
     // initialized before we connect. listSubAgents is a cheap RPC
     // that triggers wake without a state read.
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      directoryName
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, directoryName);
     await directory.listSubAgents();
 
-    const { ws } = await connectWS(
-      `/agents/assistant-directory/${directoryName}`
-    );
+    const { ws } = await connectWS(`/agents/assistant-directory/${directoryName}`);
 
     try {
       // Trigger the mutation. The frame should arrive on `ws`.
-      const writePromise = directory.writeFile(
-        "/live.txt",
-        "broadcast me",
-        "text/plain"
-      );
+      const writePromise = directory.writeFile("/live.txt", "broadcast me", "text/plain");
 
       const frame = await waitForMatching<unknown>(ws, isWorkspaceChange, 3000);
       // Drain the directory write before we close the socket so the DO
@@ -70,9 +61,7 @@ describe("workspace broadcast", () => {
       expect(isWorkspaceChange(frame)).toBe(true);
       const change = frame as WorkspaceChangeFrame;
       expect(change.event.path).toBe("/live.txt");
-      expect(
-        change.event.type === "create" || change.event.type === "update"
-      ).toBe(true);
+      expect(change.event.type === "create" || change.event.type === "update").toBe(true);
     } finally {
       ws.close();
     }
@@ -80,15 +69,10 @@ describe("workspace broadcast", () => {
 
   it("rm fires a workspace-change frame too", async () => {
     const directoryName = uniqueDirectoryName();
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      directoryName
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, directoryName);
     await directory.writeFile("/temp.txt", "to be removed");
 
-    const { ws } = await connectWS(
-      `/agents/assistant-directory/${directoryName}`
-    );
+    const { ws } = await connectWS(`/agents/assistant-directory/${directoryName}`);
 
     try {
       const rmPromise = directory.rm("/temp.txt");

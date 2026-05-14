@@ -139,8 +139,8 @@ class MyAssistant extends Think<Env> {
         // state.* in the sandbox also hits the shared workspace,
         // because SharedWorkspace satisfies WorkspaceFsLike.
         state: createWorkspaceStateBackend(this.workspace),
-        loader: this.env.LOADER
-      })
+        loader: this.env.LOADER,
+      }),
       // ...
     };
   }
@@ -237,7 +237,7 @@ class SharedMCPClient {
     // only tools from servers that are ready.
     const descriptors = await parent.listMcpToolDescriptors(timeoutMs);
     return buildToolSet(descriptors, (serverId, name, args) =>
-      parent.callMcpTool(serverId, name, args)
+      parent.callMcpTool(serverId, name, args),
     );
   }
 }

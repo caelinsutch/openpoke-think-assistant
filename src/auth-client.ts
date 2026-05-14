@@ -5,12 +5,10 @@ export type AuthUser = {
   avatarUrl: string;
 };
 
-export async function fetchCurrentUser(
-  signal?: AbortSignal
-): Promise<AuthUser | null> {
+export async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> {
   const response = await fetch("/auth/me", {
     headers: { Accept: "application/json" },
-    signal
+    signal,
   });
 
   if (response.status === 401) {
@@ -26,7 +24,7 @@ export async function fetchCurrentUser(
 
 export async function signOut() {
   const response = await fetch("/auth/logout", {
-    method: "POST"
+    method: "POST",
   });
 
   if (!response.ok) {

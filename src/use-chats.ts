@@ -38,7 +38,7 @@ const EMPTY_MCP_STATE: MCPServersState = {
   prompts: [],
   resources: [],
   servers: {},
-  tools: []
+  tools: [],
 };
 
 /** Result of `addMcpServer` — mirrors the framework's return shape. */
@@ -128,7 +128,7 @@ export function useChats(): UseChats {
       if (isWorkspaceChangeMessage(parsed)) {
         setWorkspaceRevision((n) => n + 1);
       }
-    }
+    },
   });
 
   const chats: ChatSummary[] = directory.state?.chats ?? [];
@@ -136,34 +136,34 @@ export function useChats(): UseChats {
   const createChat = useCallback(
     async (opts?: { title?: string }) =>
       (await directory.call("createChat", opts ? [opts] : [])) as ChatSummary,
-    [directory]
+    [directory],
   );
 
   const renameChat = useCallback(
     async (id: string, title: string) => {
       await directory.call("renameChat", [id, title]);
     },
-    [directory]
+    [directory],
   );
 
   const deleteChat = useCallback(
     async (id: string) => {
       await directory.call("deleteChat", [id]);
     },
-    [directory]
+    [directory],
   );
 
   const addMcpServer = useCallback(
     async (name: string, url: string) =>
       (await directory.call("addServer", [name, url])) as AddMcpServerResult,
-    [directory]
+    [directory],
   );
 
   const removeMcpServer = useCallback(
     async (id: string) => {
       await directory.call("removeServer", [id]);
     },
-    [directory]
+    [directory],
   );
 
   return {
@@ -175,6 +175,6 @@ export function useChats(): UseChats {
     renameChat,
     deleteChat,
     addMcpServer,
-    removeMcpServer
+    removeMcpServer,
   };
 }

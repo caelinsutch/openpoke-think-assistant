@@ -86,14 +86,14 @@ import {
   createWorkspaceStateBackend,
   type FileInfo,
   type WorkspaceChangeEvent,
-  type WorkspaceFsLike
+  type WorkspaceFsLike,
 } from "@cloudflare/shell";
 import {
   createUnauthorizedResponse,
   getGitHubUserFromRequest,
   handleGitHubCallback,
   handleGitHubLogin,
-  handleLogout
+  handleLogout,
 } from "./auth";
 import { createExecuteTool } from "@cloudflare/think/tools/execute";
 import { createWorkspaceTools } from "@cloudflare/think/tools/workspace";
@@ -106,7 +106,7 @@ import type {
   ChatResponseResult,
   ToolCallContext,
   ToolCallResultContext,
-  StepContext
+  StepContext,
 } from "@cloudflare/think";
 import { tool, generateText } from "ai";
 import type { LanguageModel, ToolSet } from "ai";
@@ -207,13 +207,13 @@ export class ExecutionAgent extends Agent<Env, ExecutionAgentState> {
     status: "idle",
     createdAt: 0,
     updatedAt: 0,
-    events: []
+    events: [],
   };
 
   async configureAgent(summary: ExecutionAgentSummary): Promise<void> {
     this.setState({
       ...summary,
-      events: this.state.events ?? []
+      events: this.state.events ?? [],
     });
   }
 
@@ -228,13 +228,13 @@ export class ExecutionAgent extends Agent<Env, ExecutionAgentState> {
       id: crypto.randomUUID(),
       type: "task",
       text: task,
-      createdAt: now
+      createdAt: now,
     };
     this.setState({
       ...this.state,
       status: "running",
       updatedAt: now,
-      events: [...(this.state.events ?? []), taskEvent]
+      events: [...(this.state.events ?? []), taskEvent],
     });
 
     try {
@@ -242,15 +242,14 @@ export class ExecutionAgent extends Agent<Env, ExecutionAgentState> {
         .slice(-12)
         .map(
           (event) =>
-            `${new Date(event.createdAt).toISOString()} ${event.type.toUpperCase()}: ${event.text}`
+            `${new Date(event.createdAt).toISOString()} ${event.type.toUpperCase()}: ${event.text}`,
         )
         .join("\n\n");
 
       const result = await generateText({
-        model: createWorkersAI({ binding: this.env.AI })(
-          "@cf/moonshotai/kimi-k2.6",
-          { sessionAffinity: this.name }
-        ),
+        model: createWorkersAI({ binding: this.env.AI })("@cf/moonshotai/kimi-k2.6", {
+          sessionAffinity: this.name,
+        }),
         system: `You are a focused execution agent with role "${this.state.role}".
 
 Own this work thread over time. Use prior task history to preserve continuity.
@@ -266,7 +265,7 @@ Visible assistant context:
 ${context || "(none)"}
 
 Recent execution log:
-${history || "(empty)"}`
+${history || "(empty)"}`,
       });
 
       const doneAt = Date.now();
@@ -275,7 +274,7 @@ ${history || "(empty)"}`
         id: crypto.randomUUID(),
         type: "result",
         text: resultText,
-        createdAt: doneAt
+        createdAt: doneAt,
       };
 
       this.setState({
@@ -283,25 +282,24 @@ ${history || "(empty)"}`
         status: "done",
         updatedAt: doneAt,
         lastResult: resultText,
-        events: [...(this.state.events ?? []), resultEvent]
+        events: [...(this.state.events ?? []), resultEvent],
       });
       return this.snapshot();
     } catch (error) {
       const failedAt = Date.now();
-      const message =
-        error instanceof Error ? error.message : "Execution agent failed";
+      const message = error instanceof Error ? error.message : "Execution agent failed";
       const errorEvent: ExecutionAgentEvent = {
         id: crypto.randomUUID(),
         type: "error",
         text: message,
-        createdAt: failedAt
+        createdAt: failedAt,
       };
       this.setState({
         ...this.state,
         status: "error",
         updatedAt: failedAt,
         lastResult: message,
-        events: [...(this.state.events ?? []), errorEvent]
+        events: [...(this.state.events ?? []), errorEvent],
       });
       return this.snapshot();
     }
@@ -350,7 +348,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   workspace = new Workspace({
     sql: this.ctx.storage.sql,
     name: () => this.name,
-    onChange: (event) => this._broadcastWorkspaceChange(event)
+    onChange: (event) => this._broadcastWorkspaceChange(event),
     // r2: this.env.R2 — uncomment to spill large files to R2.
   });
 
@@ -371,13 +369,13 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   }
 
   onStart() {
-    this.sql`CREATE TABLE IF NOT EXISTS chat_meta (
+    void this.sql`CREATE TABLE IF NOT EXISTS chat_meta (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       updated_at INTEGER NOT NULL,
       last_message_preview TEXT
     )`;
-    this.sql`CREATE TABLE IF NOT EXISTS execution_agent_meta (
+    void this.sql`CREATE TABLE IF NOT EXISTS execution_agent_meta (
       id TEXT PRIMARY KEY,
       role TEXT NOT NULL,
       title TEXT NOT NULL,
@@ -387,7 +385,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       updated_at INTEGER NOT NULL,
       last_result TEXT
     )`;
-    this.sql`CREATE TABLE IF NOT EXISTS execution_tasks (
+    void this.sql`CREATE TABLE IF NOT EXISTS execution_tasks (
       id TEXT PRIMARY KEY,
       agent_id TEXT NOT NULL,
       title TEXT NOT NULL,
@@ -398,7 +396,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       last_run_at INTEGER,
       result TEXT
     )`;
-    this.sql`CREATE TABLE IF NOT EXISTS execution_triggers (
+    void this.sql`CREATE TABLE IF NOT EXISTS execution_triggers (
       id TEXT PRIMARY KEY,
       agent_id TEXT NOT NULL,
       task_id TEXT NOT NULL,
@@ -426,14 +424,14 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
         if (result.authSuccess) {
           return new Response("<script>window.close();</script>", {
             headers: { "content-type": "text/html" },
-            status: 200
+            status: 200,
           });
         }
-        return new Response(
-          `Authentication Failed: ${result.authError || "Unknown error"}`,
-          { headers: { "content-type": "text/plain" }, status: 400 }
-        );
-      }
+        return new Response(`Authentication Failed: ${result.authError || "Unknown error"}`, {
+          headers: { "content-type": "text/plain" },
+          status: 400,
+        });
+      },
     });
   }
 
@@ -445,7 +443,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
    */
   override async onBeforeSubAgent(
     _req: Request,
-    { className, name }: { className: string; name: string }
+    { className, name }: { className: string; name: string },
   ): Promise<Request | Response | void> {
     if (className !== "MyAssistant") {
       return new Response("Not found", { status: 404 });
@@ -485,7 +483,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
           title: meta?.title ?? defaultChatTitle(entry.createdAt),
           createdAt: entry.createdAt,
           updatedAt: meta?.updated_at ?? entry.createdAt,
-          lastMessagePreview: meta?.last_message_preview ?? undefined
+          lastMessagePreview: meta?.last_message_preview ?? undefined,
         };
       })
       .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -505,7 +503,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     // metadata INSERT fails for any reason, a subsequent `deleteChat`
     // or `_refreshState` will still find the chat via the registry.
     await this.subAgent(MyAssistant, id);
-    this.sql`
+    void this.sql`
       INSERT INTO chat_meta (id, title, updated_at, last_message_preview)
       VALUES (${id}, ${title}, ${now}, NULL)
     `;
@@ -514,7 +512,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       id,
       title,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     };
   }
 
@@ -522,7 +520,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   async renameChat(id: string, title: string): Promise<void> {
     const trimmed = title.trim();
     if (!trimmed) return;
-    this.sql`
+    void this.sql`
       INSERT INTO chat_meta (id, title, updated_at)
       VALUES (${id}, ${trimmed}, ${Date.now()})
       ON CONFLICT(id) DO UPDATE SET
@@ -539,7 +537,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     // registry is authoritative, but we do the facet first so a crash
     // between the two leaves no orphan meta rows visible.
     await this.deleteSubAgent(MyAssistant, id);
-    this.sql`DELETE FROM chat_meta WHERE id = ${id}`;
+    void this.sql`DELETE FROM chat_meta WHERE id = ${id}`;
     this._refreshState();
   }
 
@@ -555,7 +553,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
    * for any chat id in their own directory.
    */
   async recordChatTurn(chatId: string, preview: string): Promise<void> {
-    this.sql`
+    void this.sql`
       INSERT INTO chat_meta (id, title, updated_at, last_message_preview)
       VALUES (
         ${chatId},
@@ -623,7 +621,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
           status: row?.status ?? "idle",
           createdAt: row?.created_at ?? entry.createdAt,
           updatedAt: row?.updated_at ?? entry.createdAt,
-          lastResult: row?.last_result ?? undefined
+          lastResult: row?.last_result ?? undefined,
         } satisfies ExecutionAgentSummary;
       })
       .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -643,7 +641,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       instructions: opts.instructions.trim(),
       status: "idle",
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     };
 
     const agent = await this.subAgent(ExecutionAgent, id);
@@ -655,7 +653,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   async delegateToExecutionAgent(
     id: string,
     task: string,
-    context?: string
+    context?: string,
   ): Promise<ExecutionAgentSummary> {
     if (!this.hasSubAgent("ExecutionAgent", id)) {
       throw new Error(`ExecutionAgent "${id}" not found`);
@@ -702,7 +700,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         lastRunAt: row.last_run_at ?? undefined,
-        result: row.result ?? undefined
+        result: row.result ?? undefined,
       }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }
@@ -724,16 +722,13 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       instructions: opts.instructions.trim(),
       status: "queued",
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     };
     this._upsertExecutionTask(task);
     return task;
   }
 
-  async runExecutionTask(
-    taskId: string,
-    context?: string
-  ): Promise<ExecutionTaskSummary> {
+  async runExecutionTask(taskId: string, context?: string): Promise<ExecutionTaskSummary> {
     const task = this._getExecutionTask(taskId);
     if (!task) throw new Error(`Execution task "${taskId}" not found`);
 
@@ -742,13 +737,13 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       ...task,
       status: "running",
       updatedAt: startedAt,
-      lastRunAt: startedAt
+      lastRunAt: startedAt,
     });
 
     const summary = await this.delegateToExecutionAgent(
       task.agentId,
       `${task.title}\n\n${task.instructions}`,
-      context
+      context,
     );
 
     const finishedAt = Date.now();
@@ -757,15 +752,13 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       status: summary.status === "error" ? "error" : "done",
       updatedAt: finishedAt,
       lastRunAt: finishedAt,
-      result: summary.lastResult
+      result: summary.lastResult,
     };
     this._upsertExecutionTask(next);
     return next;
   }
 
-  async listExecutionTriggers(
-    agentId?: string
-  ): Promise<ExecutionTriggerSummary[]> {
+  async listExecutionTriggers(agentId?: string): Promise<ExecutionTriggerSummary[]> {
     const rows = agentId
       ? this.sql<{
           id: string;
@@ -800,7 +793,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
         enabled: row.enabled === 1,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        lastRunAt: row.last_run_at ?? undefined
+        lastRunAt: row.last_run_at ?? undefined,
       }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }
@@ -825,7 +818,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       cron: opts.cron.trim(),
       enabled: true,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     };
 
     this._upsertExecutionTrigger(trigger);
@@ -833,14 +826,12 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       trigger.cron,
       "fireExecutionTrigger",
       { triggerId: trigger.id },
-      { idempotent: true }
+      { idempotent: true },
     );
     return trigger;
   }
 
-  async fireExecutionTrigger(
-    payload: { triggerId: string } | string
-  ): Promise<void> {
+  async fireExecutionTrigger(payload: { triggerId: string } | string): Promise<void> {
     const triggerId = typeof payload === "string" ? payload : payload.triggerId;
     const trigger = this._getExecutionTrigger(triggerId);
     if (!trigger || !trigger.enabled) return;
@@ -849,7 +840,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     this._upsertExecutionTrigger({
       ...trigger,
       updatedAt: now,
-      lastRunAt: now
+      lastRunAt: now,
     });
     await this.runExecutionTask(trigger.taskId, "Triggered by scheduled cron.");
   }
@@ -876,7 +867,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       lastRunAt: row.last_run_at ?? undefined,
-      result: row.result ?? undefined
+      result: row.result ?? undefined,
     };
   }
 
@@ -902,12 +893,12 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       enabled: row.enabled === 1,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      lastRunAt: row.last_run_at ?? undefined
+      lastRunAt: row.last_run_at ?? undefined,
     };
   }
 
   private _upsertExecutionTask(task: ExecutionTaskSummary): void {
-    this.sql`
+    void this.sql`
       INSERT INTO execution_tasks (
         id,
         agent_id,
@@ -941,7 +932,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   }
 
   private _upsertExecutionTrigger(trigger: ExecutionTriggerSummary): void {
-    this.sql`
+    void this.sql`
       INSERT INTO execution_triggers (
         id,
         agent_id,
@@ -973,7 +964,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   }
 
   private _upsertExecutionAgentMeta(summary: ExecutionAgentSummary): void {
-    this.sql`
+    void this.sql`
       INSERT INTO execution_agent_meta (
         id,
         role,
@@ -1033,7 +1024,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   async writeFile(
     path: string,
     content: string,
-    mimeType?: Parameters<Workspace["writeFile"]>[2]
+    mimeType?: Parameters<Workspace["writeFile"]>[2],
   ): Promise<void> {
     return this.workspace.writeFile(path, content, mimeType);
   }
@@ -1041,7 +1032,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   async writeFileBytes(
     path: string,
     content: Parameters<Workspace["writeFileBytes"]>[1],
-    mimeType?: Parameters<Workspace["writeFileBytes"]>[2]
+    mimeType?: Parameters<Workspace["writeFileBytes"]>[2],
   ): Promise<void> {
     return this.workspace.writeFileBytes(path, content, mimeType);
   }
@@ -1049,7 +1040,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   async appendFile(
     path: string,
     content: string,
-    mimeType?: Parameters<Workspace["appendFile"]>[2]
+    mimeType?: Parameters<Workspace["appendFile"]>[2],
   ): Promise<void> {
     return this.workspace.appendFile(path, content, mimeType);
   }
@@ -1058,10 +1049,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     return this.workspace.exists(path);
   }
 
-  async readDir(
-    path: string,
-    opts?: Parameters<Workspace["readDir"]>[1]
-  ): Promise<FileInfo[]> {
+  async readDir(path: string, opts?: Parameters<Workspace["readDir"]>[1]): Promise<FileInfo[]> {
     return this.workspace.readDir(path, opts);
   }
 
@@ -1073,10 +1061,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     return this.workspace.glob(pattern);
   }
 
-  async mkdir(
-    path: string,
-    opts?: Parameters<Workspace["mkdir"]>[1]
-  ): Promise<void> {
+  async mkdir(path: string, opts?: Parameters<Workspace["mkdir"]>[1]): Promise<void> {
     return this.workspace.mkdir(path, opts);
   }
 
@@ -1088,11 +1073,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     return this.workspace.lstat(path);
   }
 
-  async cp(
-    src: string,
-    dest: string,
-    opts?: Parameters<Workspace["cp"]>[2]
-  ): Promise<void> {
+  async cp(src: string, dest: string, opts?: Parameters<Workspace["cp"]>[2]): Promise<void> {
     return this.workspace.cp(src, dest, opts);
   }
 
@@ -1135,12 +1116,9 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
    * for every server for every chat.
    */
   @callable()
-  async addServer(
-    name: string,
-    url: string
-  ): ReturnType<AssistantDirectory["addMcpServer"]> {
+  async addServer(name: string, url: string): ReturnType<AssistantDirectory["addMcpServer"]> {
     return await this.addMcpServer(name, url, {
-      callbackPath: "chat/mcp-callback"
+      callbackPath: "chat/mcp-callback",
     });
   }
 
@@ -1165,9 +1143,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
    * need the decorator, and the browser reads MCP state via the
    * `CF_AGENT_MCP_SERVERS` broadcast (automatic, not this path).
    */
-  async listMcpToolDescriptors(
-    timeoutMs = 5_000
-  ): Promise<McpToolDescriptor[]> {
+  async listMcpToolDescriptors(timeoutMs = 5_000): Promise<McpToolDescriptor[]> {
     await this.mcp.waitForConnections({ timeout: timeoutMs });
     return this.mcp.listTools() as McpToolDescriptor[];
   }
@@ -1185,12 +1161,12 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   async callMcpTool(
     serverId: string,
     name: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
   ): Promise<CallToolResult> {
     return (await this.mcp.callTool({
       arguments: args,
       name,
-      serverId
+      serverId,
     })) as CallToolResult;
   }
 }
@@ -1232,18 +1208,14 @@ class SharedWorkspace implements WorkspaceFsLike {
     return (await this.parent()).readFileBytes(path);
   }
 
-  async writeFile(
-    path: string,
-    content: string,
-    mimeType?: Parameters<Workspace["writeFile"]>[2]
-  ) {
+  async writeFile(path: string, content: string, mimeType?: Parameters<Workspace["writeFile"]>[2]) {
     return (await this.parent()).writeFile(path, content, mimeType);
   }
 
   async writeFileBytes(
     path: string,
     content: Parameters<Workspace["writeFileBytes"]>[1],
-    mimeType?: Parameters<Workspace["writeFileBytes"]>[2]
+    mimeType?: Parameters<Workspace["writeFileBytes"]>[2],
   ) {
     return (await this.parent()).writeFileBytes(path, content, mimeType);
   }
@@ -1251,7 +1223,7 @@ class SharedWorkspace implements WorkspaceFsLike {
   async appendFile(
     path: string,
     content: string,
-    mimeType?: Parameters<Workspace["appendFile"]>[2]
+    mimeType?: Parameters<Workspace["appendFile"]>[2],
   ) {
     return (await this.parent()).appendFile(path, content, mimeType);
   }
@@ -1342,9 +1314,7 @@ class SharedMCPClient {
    */
   async getAITools(timeoutMs = 5_000): Promise<ToolSet> {
     const parent = await this.parent();
-    const descriptors = (await parent.listMcpToolDescriptors(
-      timeoutMs
-    )) as McpToolDescriptor[];
+    const descriptors = (await parent.listMcpToolDescriptors(timeoutMs)) as McpToolDescriptor[];
 
     const entries: [string, ToolSet[string]][] = [];
     for (const descriptor of descriptors) {
@@ -1354,8 +1324,7 @@ class SharedMCPClient {
         const toolKey = `tool_${descriptor.serverId.replace(/-/g, "")}_${descriptor.name}`;
         const { serverId, name, inputSchema, outputSchema } = descriptor;
         const title =
-          descriptor.title ??
-          (descriptor.annotations as { title?: string } | undefined)?.title;
+          descriptor.title ?? (descriptor.annotations as { title?: string } | undefined)?.title;
 
         entries.push([
           toolKey,
@@ -1363,21 +1332,17 @@ class SharedMCPClient {
             description: descriptor.description,
             title,
             inputSchema: inputSchema
-              ? z.fromJSONSchema(
-                  inputSchema as Parameters<typeof z.fromJSONSchema>[0]
-                )
+              ? z.fromJSONSchema(inputSchema as Parameters<typeof z.fromJSONSchema>[0])
               : z.fromJSONSchema({ type: "object" }),
             outputSchema: outputSchema
-              ? z.fromJSONSchema(
-                  outputSchema as Parameters<typeof z.fromJSONSchema>[0]
-                )
+              ? z.fromJSONSchema(outputSchema as Parameters<typeof z.fromJSONSchema>[0])
               : undefined,
             execute: async (args) => {
               const stub = await this.parent();
               const result = (await stub.callMcpTool(
                 serverId,
                 name,
-                args as Record<string, unknown>
+                args as Record<string, unknown>,
               )) as CallToolResult;
               if (result.isError) {
                 const content = result.content as
@@ -1391,12 +1356,12 @@ class SharedMCPClient {
                 throw new Error(message);
               }
               return result;
-            }
-          }
+            },
+          },
         ]);
       } catch (err) {
         console.warn(
-          `[SharedMCPClient] Skipping tool "${descriptor.name}" from "${descriptor.serverId}": ${err}`
+          `[SharedMCPClient] Skipping tool "${descriptor.name}" from "${descriptor.serverId}": ${err}`,
         );
       }
     }
@@ -1409,7 +1374,7 @@ class SharedMCPClient {
 
 export class MyAssistant extends Think<Env> {
   static options = {
-    sendIdentityOnConnect: true
+    sendIdentityOnConnect: true,
   };
   override maxSteps = 10;
   chatRecovery = true;
@@ -1458,12 +1423,11 @@ export class MyAssistant extends Think<Env> {
     const tier = this.getConfig<AgentConfig>()?.modelTier ?? "fast";
     const models: Record<string, string> = {
       fast: "@cf/moonshotai/kimi-k2.6",
-      capable: "@cf/moonshotai/kimi-k2.6"
+      capable: "@cf/moonshotai/kimi-k2.6",
     };
-    return createWorkersAI({ binding: this.env.AI })(
-      models[tier] ?? models.fast,
-      { sessionAffinity: this.sessionAffinity }
-    );
+    return createWorkersAI({ binding: this.env.AI })(models[tier] ?? models.fast, {
+      sessionAffinity: this.sessionAffinity,
+    });
   }
 
   configureSession(session: Session) {
@@ -1481,25 +1445,25 @@ Be concise. Prefer short, direct answers over lengthy explanations.
 The execute tool runs JavaScript you write in a sandboxed environment. Use it for multi-file operations, data transformations, or any task that would require many sequential tool calls.
 You can create extensions: new tools that persist across conversations. Offer to create one when a recurring task would benefit from it.
 For durable multi-step work, use execution agents: list the existing roster, create a focused worker when no suitable one exists, create durable tasks for work that may need status or retries, and create cron triggers for work that should wake up later. Reuse the same execution agent for follow-ups on the same thread of work.
-When you learn something about the user or their project, save it to memory.`
-        }
+When you learn something about the user or their project, save it to memory.`,
+        },
       })
       .withContext("memory", {
         description:
           "Key facts about the user, their preferences, project context, and decisions made during conversation. Update when you learn something that would be useful in future turns.",
-        maxTokens: 2000
+        maxTokens: 2000,
       })
       .onCompaction(
         createCompactFunction({
           summarize: (prompt) =>
-            generateText({ model: this.getModel(), prompt }).then((r) => r.text)
-        })
+            generateText({ model: this.getModel(), prompt }).then((r) => r.text),
+        }),
       )
       .compactAfter(50000)
       .withContext("knowledge", {
         description:
           "Searchable knowledge base. Index useful information with set_context and retrieve it later with search_context.",
-        provider: new AgentSearchProvider(this)
+        provider: new AgentSearchProvider(this),
       })
       .withCachedPrompt();
   }
@@ -1508,7 +1472,7 @@ When you learn something about the user or their project, save it to memory.`
     const extensionTools = this.extensionManager
       ? {
           ...createExtensionTools({ manager: this.extensionManager }),
-          ...this.extensionManager.getTools()
+          ...this.extensionManager.getTools(),
         }
       : {};
 
@@ -1521,7 +1485,7 @@ When you learn something about the user or their project, save it to memory.`
         // `@cloudflare/shell`. That means `state.planEdits`/`applyEdits`
         // in chat B sees and mutates the same files chat A just wrote.
         state: createWorkspaceStateBackend(this.workspace),
-        loader: this.env.LOADER
+        loader: this.env.LOADER,
       }),
 
       ...extensionTools,
@@ -1529,7 +1493,7 @@ When you learn something about the user or their project, save it to memory.`
       getWeather: tool({
         description: "Get the current weather for a city",
         inputSchema: z.object({
-          city: z.string().describe("City name")
+          city: z.string().describe("City name"),
         }),
         execute: async ({ city }) => {
           const conditions = ["sunny", "cloudy", "rainy", "snowy"];
@@ -1537,44 +1501,41 @@ When you learn something about the user or their project, save it to memory.`
           return {
             city,
             temperature: temp,
-            condition:
-              conditions[Math.floor(Math.random() * conditions.length)],
-            unit: "celsius"
+            condition: conditions[Math.floor(Math.random() * conditions.length)],
+            unit: "celsius",
           };
-        }
+        },
       }),
 
       getUserTimezone: tool({
         description:
           "Get the user's timezone from their browser. Use this when you need to know the user's local time.",
-        inputSchema: z.object({})
+        inputSchema: z.object({}),
       }),
 
       calculate: tool({
-        description:
-          "Perform a math calculation. Requires approval for large numbers (over 1000).",
+        description: "Perform a math calculation. Requires approval for large numbers (over 1000).",
         inputSchema: z.object({
           a: z.number().describe("First number"),
           b: z.number().describe("Second number"),
-          operator: z.enum(["+", "-", "*", "/"]).describe("Arithmetic operator")
+          operator: z.enum(["+", "-", "*", "/"]).describe("Arithmetic operator"),
         }),
-        needsApproval: async ({ a, b }) =>
-          Math.abs(a) > 1000 || Math.abs(b) > 1000,
+        needsApproval: async ({ a, b }) => Math.abs(a) > 1000 || Math.abs(b) > 1000,
         execute: async ({ a, b, operator }) => {
           const ops: Record<string, (x: number, y: number) => number> = {
             "+": (x, y) => x + y,
             "-": (x, y) => x - y,
             "*": (x, y) => x * y,
-            "/": (x, y) => x / y
+            "/": (x, y) => x / y,
           };
           if (operator === "/" && b === 0) {
             return { error: "Division by zero" };
           }
           return {
             expression: `${a} ${operator} ${b}`,
-            result: ops[operator](a, b)
+            result: ops[operator](a, b),
           };
-        }
+        },
       }),
 
       list_execution_agents: tool({
@@ -1584,7 +1545,7 @@ When you learn something about the user or their project, save it to memory.`
         execute: async () => {
           const directory = await this.parentAgent(AssistantDirectory);
           return directory.listExecutionAgents();
-        }
+        },
       }),
 
       create_execution_agent: tool({
@@ -1594,19 +1555,17 @@ When you learn something about the user or their project, save it to memory.`
           role: z
             .enum(["research", "email", "reminder", "general"])
             .describe("The worker role template to use."),
-          title: z
-            .string()
-            .describe("Short human-readable name for the work thread."),
+          title: z.string().describe("Short human-readable name for the work thread."),
           instructions: z
             .string()
             .describe(
-              "Durable instructions this worker should keep using on future delegated tasks."
-            )
+              "Durable instructions this worker should keep using on future delegated tasks.",
+            ),
         }),
         execute: async ({ role, title, instructions }) => {
           const directory = await this.parentAgent(AssistantDirectory);
           return directory.createExecutionAgent({ role, title, instructions });
-        }
+        },
       }),
 
       delegate_to_execution_agent: tool({
@@ -1614,18 +1573,13 @@ When you learn something about the user or their project, save it to memory.`
           "Send a bounded task to an existing hidden execution agent and return its status report.",
         inputSchema: z.object({
           id: z.string().describe("The execution agent id from the roster."),
-          task: z
-            .string()
-            .describe("The concrete task the execution agent should perform."),
-          context: z
-            .string()
-            .optional()
-            .describe("Relevant user-facing conversation context.")
+          task: z.string().describe("The concrete task the execution agent should perform."),
+          context: z.string().optional().describe("Relevant user-facing conversation context."),
         }),
         execute: async ({ id, task, context }) => {
           const directory = await this.parentAgent(AssistantDirectory);
           return directory.delegateToExecutionAgent(id, task, context);
-        }
+        },
       }),
 
       create_execution_task: tool({
@@ -1636,24 +1590,23 @@ When you learn something about the user or their project, save it to memory.`
           title: z.string().describe("Short task title."),
           instructions: z
             .string()
-            .describe("Concrete instructions the execution agent should run now or later.")
+            .describe("Concrete instructions the execution agent should run now or later."),
         }),
         execute: async ({ agentId, title, instructions }) => {
           const directory = await this.parentAgent(AssistantDirectory);
           return directory.createExecutionTask({ agentId, title, instructions });
-        }
+        },
       }),
 
       list_execution_tasks: tool({
-        description:
-          "List durable execution tasks, optionally scoped to one execution agent.",
+        description: "List durable execution tasks, optionally scoped to one execution agent.",
         inputSchema: z.object({
-          agentId: z.string().optional().describe("Optional execution agent id.")
+          agentId: z.string().optional().describe("Optional execution agent id."),
         }),
         execute: async ({ agentId }) => {
           const directory = await this.parentAgent(AssistantDirectory);
           return directory.listExecutionTasks(agentId);
-        }
+        },
       }),
 
       run_execution_task: tool({
@@ -1661,15 +1614,12 @@ When you learn something about the user or their project, save it to memory.`
           "Run an existing durable execution task through its owning hidden execution agent.",
         inputSchema: z.object({
           taskId: z.string().describe("The task id to run."),
-          context: z
-            .string()
-            .optional()
-            .describe("Relevant user-facing conversation context.")
+          context: z.string().optional().describe("Relevant user-facing conversation context."),
         }),
         execute: async ({ taskId, context }) => {
           const directory = await this.parentAgent(AssistantDirectory);
           return directory.runExecutionTask(taskId, context);
-        }
+        },
       }),
 
       create_execution_trigger: tool({
@@ -1680,25 +1630,25 @@ When you learn something about the user or their project, save it to memory.`
           taskId: z.string().describe("The durable task to run on schedule."),
           cron: z
             .string()
-            .describe("Cron expression, for example '0 14 * * 1' for Mondays at 14:00 UTC.")
+            .describe("Cron expression, for example '0 14 * * 1' for Mondays at 14:00 UTC."),
         }),
         execute: async ({ agentId, taskId, cron }) => {
           const directory = await this.parentAgent(AssistantDirectory);
           return directory.createExecutionTrigger({ agentId, taskId, cron });
-        }
+        },
       }),
 
       list_execution_triggers: tool({
         description:
           "List cron triggers that can wake hidden execution agents, optionally scoped to one execution agent.",
         inputSchema: z.object({
-          agentId: z.string().optional().describe("Optional execution agent id.")
+          agentId: z.string().optional().describe("Optional execution agent id."),
         }),
         execute: async ({ agentId }) => {
           const directory = await this.parentAgent(AssistantDirectory);
           return directory.listExecutionTriggers(agentId);
-        }
-      })
+        },
+      }),
     };
   }
 
@@ -1713,7 +1663,7 @@ When you learn something about the user or their project, save it to memory.`
     const mcpTools = await this.sharedMcp.getAITools();
 
     console.log(
-      `Turn starting: ${Object.keys(ctx.tools).length} base tools + ${Object.keys(mcpTools).length} MCP tools, continuation=${ctx.continuation}`
+      `Turn starting: ${Object.keys(ctx.tools).length} base tools + ${Object.keys(mcpTools).length} MCP tools, continuation=${ctx.continuation}`,
     );
 
     return { tools: mcpTools };
@@ -1726,21 +1676,16 @@ When you learn something about the user or their project, save it to memory.`
   afterToolCall(ctx: ToolCallResultContext): void {
     if (ctx.success) {
       const resultSize = JSON.stringify(ctx.output).length;
-      console.log(
-        `Tool result: ${ctx.toolName} (${resultSize} bytes, ${ctx.durationMs}ms)`
-      );
+      console.log(`Tool result: ${ctx.toolName} (${resultSize} bytes, ${ctx.durationMs}ms)`);
     } else {
-      console.error(
-        `Tool failed: ${ctx.toolName} (${ctx.durationMs}ms)`,
-        ctx.error
-      );
+      console.error(`Tool failed: ${ctx.toolName} (${ctx.durationMs}ms)`, ctx.error);
     }
   }
 
   onStepFinish(ctx: StepContext): void {
     if (ctx.usage) {
       console.log(
-        `Step finished (${ctx.finishReason}): ${ctx.usage.inputTokens}in/${ctx.usage.outputTokens}out`
+        `Step finished (${ctx.finishReason}): ${ctx.usage.inputTokens}in/${ctx.usage.outputTokens}out`,
       );
     }
   }
@@ -1788,10 +1733,10 @@ When you learn something about the user or their project, save it to memory.`
         parts: [
           {
             type: "text",
-            text: "Generate a brief summary of what we worked on recently. Check the workspace for any files and summarize the current state of things."
-          }
-        ]
-      }
+            text: "Generate a brief summary of what we worked on recently. Check the workspace for any files and summarize the current state of things.",
+          },
+        ],
+      },
     ]);
   }
 
@@ -1904,15 +1849,11 @@ export default {
           return createUnauthorizedResponse(request);
         }
 
-        const directory = await getAgentByName(
-          env.AssistantDirectory,
-          user.login
-        );
+        const directory = await getAgentByName(env.AssistantDirectory, user.login);
         return directory.fetch(request);
       }
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unexpected auth error";
+      const message = error instanceof Error ? error.message : "Unexpected auth error";
       return createJsonResponse({ error: message }, { status: 500 });
     }
 
@@ -1922,5 +1863,5 @@ export default {
     // `/agents/my-assistant/<chatId>` without going through the
     // GitHub-authenticated `/chat*` gate.
     return new Response("Not found", { status: 404 });
-  }
+  },
 } satisfies ExportedHandler<Env>;

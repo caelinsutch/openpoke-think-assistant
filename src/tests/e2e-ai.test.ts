@@ -14,19 +14,16 @@ import { uniqueDirectoryName } from "./helpers";
 
 describe("AI E2E — execution task runner", () => {
   it("runs a durable task through a hidden execution agent", async () => {
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      uniqueDirectoryName("ai-e2e")
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, uniqueDirectoryName("ai-e2e"));
     const worker = await directory.createExecutionAgent({
       role: "general",
       title: "AI smoke worker",
-      instructions: "Return concise deterministic status reports."
+      instructions: "Return concise deterministic status reports.",
     });
     const task = await directory.createExecutionTask({
       agentId: worker.id,
       title: "Say hello",
-      instructions: "Return the exact phrase: hello from execution agent"
+      instructions: "Return the exact phrase: hello from execution agent",
     });
 
     const result = await directory.runExecutionTask(task.id);

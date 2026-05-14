@@ -54,7 +54,7 @@ describe("AssistantDirectory — chat lifecycle", () => {
     expect(state.chats).toHaveLength(1);
     expect(state.chats[0]).toMatchObject({
       id: summary.id,
-      title: "First conversation"
+      title: "First conversation",
     });
 
     // Registry is the authoritative set; meta is decoration.
@@ -83,9 +83,7 @@ describe("AssistantDirectory — chat lifecycle", () => {
     // Whitespace-only renames are ignored, as per the example spec.
     await directory.renameChat(id, "   ");
     const stateAfterNoop = await readDirectoryState(name);
-    expect(stateAfterNoop.chats.find((c) => c.id === id)?.title).toBe(
-      "Renamed"
-    );
+    expect(stateAfterNoop.chats.find((c) => c.id === id)?.title).toBe("Renamed");
   });
 
   it("deleteChat removes the chat from state, registry, and meta", async () => {

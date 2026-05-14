@@ -1,17 +1,20 @@
 {
   "name": "openpoke-think-assistant",
-  "description": "OpenPoke-style orchestrator assistant built on Cloudflare Think and Agents",
-  "private": true,
-  "type": "module",
   "version": "0.0.0",
-  "packageManager": "bun@1.3.13",
+  "private": true,
+  "description": "OpenPoke-style orchestrator assistant built on Cloudflare Think and Agents",
+  "type": "module",
   "scripts": {
     "start": "vite dev",
     "build": "vite build",
     "deploy": "vite build && wrangler deploy",
     "test": "vitest --run --config src/tests/vitest.config.ts",
     "test:e2e": "RUN_AI_E2E=1 vitest --run --config src/tests/vitest.ai.config.ts",
-    "types": "wrangler types env.d.ts --include-runtime false"
+    "types": "wrangler types env.d.ts --include-runtime false",
+    "lint": "oxlint .",
+    "format:check": "oxfmt --check .",
+    "format": "oxfmt --write .",
+    "check": "bunx tsc --noEmit && bun run lint && bun run format:check && bun run test && bun run build"
   },
   "dependencies": {
     "@cloudflare/ai-chat": "*",
@@ -36,10 +39,13 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "oxfmt": "^0.49.0",
+    "oxlint": "^1.64.0",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.12",
     "vitest": "^4.1.6",
     "wrangler": "^4.90.1"
-  }
+  },
+  "packageManager": "bun@1.3.13"
 }

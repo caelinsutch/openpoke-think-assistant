@@ -24,10 +24,7 @@ import { readDirectoryState, uniqueDirectoryName } from "./helpers";
 
 describe("AssistantDirectory.dailySummary", () => {
   it("is a no-op when no chats exist", async () => {
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      uniqueDirectoryName()
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, uniqueDirectoryName());
 
     // Resolves cleanly without spawning anything.
     await directory.dailySummary();
@@ -41,10 +38,7 @@ describe("AssistantDirectory.dailySummary", () => {
     // dispatch into the child is gated on the AI binding (see scope
     // note above).
     const directoryName = uniqueDirectoryName();
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      directoryName
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, directoryName);
 
     const a = await directory.createChat({ title: "older" });
     const b = await directory.createChat({ title: "newer" });

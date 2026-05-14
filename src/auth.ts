@@ -6,7 +6,7 @@ const LOCAL_DEV_USER: GitHubUser = {
   id: 0,
   login: "local-dev",
   name: "Local Dev",
-  avatarUrl: "https://avatars.githubusercontent.com/u/583231?v=4"
+  avatarUrl: "https://avatars.githubusercontent.com/u/583231?v=4",
 };
 
 export type GitHubUser = {
@@ -27,13 +27,13 @@ type CookieOptions = {
 function getGitHubConfig(env: Env) {
   if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
     throw new Error(
-      "Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in .env before starting the example."
+      "Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in .env before starting the example.",
     );
   }
 
   return {
     clientId: env.GITHUB_CLIENT_ID,
-    clientSecret: env.GITHUB_CLIENT_SECRET
+    clientSecret: env.GITHUB_CLIENT_SECRET,
   };
 }
 
@@ -49,7 +49,7 @@ function buildCookie(name: string, value: string, options: CookieOptions = {}) {
   const parts = [
     `${name}=${encodeURIComponent(value)}`,
     `Path=${options.path ?? "/"}`,
-    `SameSite=${options.sameSite ?? "Lax"}`
+    `SameSite=${options.sameSite ?? "Lax"}`,
   ];
 
   if (options.httpOnly ?? true) parts.push("HttpOnly");
@@ -65,7 +65,7 @@ function clearCookie(name: string, request: Request) {
   return buildCookie(name, "", {
     httpOnly: true,
     maxAge: 0,
-    secure: shouldUseSecureCookies(request)
+    secure: shouldUseSecureCookies(request),
   });
 }
 
@@ -107,7 +107,7 @@ function createGitHubHeaders(token?: string) {
   const headers = new Headers({
     Accept: "application/vnd.github+json",
     "User-Agent": "cloudflare-auth-agent",
-    "X-GitHub-Api-Version": GITHUB_API_VERSION
+    "X-GitHub-Api-Version": GITHUB_API_VERSION,
   });
 
   if (token) {
@@ -124,14 +124,14 @@ async function exchangeCodeForToken(request: Request, env: Env, code: string) {
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      "User-Agent": "cloudflare-auth-agent"
+      "User-Agent": "cloudflare-auth-agent",
     },
     body: JSON.stringify({
       client_id: clientId,
       client_secret: clientSecret,
       code,
-      redirect_uri: getRedirectUri(request)
-    })
+      redirect_uri: getRedirectUri(request),
+    }),
   });
 
   const payload = (await response.json()) as {
@@ -141,10 +141,7 @@ async function exchangeCodeForToken(request: Request, env: Env, code: string) {
   };
 
   if (!response.ok || !payload.access_token) {
-    const message =
-      payload.error_description ??
-      payload.error ??
-      "GitHub token exchange failed";
+    const message = payload.error_description ?? payload.error ?? "GitHub token exchange failed";
     throw new Error(message);
   }
 
@@ -153,7 +150,7 @@ async function exchangeCodeForToken(request: Request, env: Env, code: string) {
 
 async function fetchGitHubUser(token: string): Promise<GitHubUser | null> {
   const response = await fetch("https://api.github.com/user", {
-    headers: createGitHubHeaders(token)
+    headers: createGitHubHeaders(token),
   });
 
   if (response.status === 401) {
@@ -183,7 +180,7 @@ async function fetchGitHubUser(token: string): Promise<GitHubUser | null> {
     id: payload.id,
     login: payload.login,
     name: payload.name ?? null,
-    avatarUrl: payload.avatar_url
+    avatarUrl: payload.avatar_url,
   };
 }
 
@@ -195,7 +192,7 @@ export function createUnauthorizedResponse(request: Request) {
 
 export async function getGitHubUserFromRequest(
   request: Request,
-  env?: Env
+  env?: Env,
 ): Promise<GitHubUser | null> {
   if (shouldUseMockAuth(env)) return LOCAL_DEV_USER;
   const token = getCookie(request, GITHUB_TOKEN_COOKIE);
@@ -207,13 +204,13 @@ export function handleGitHubLogin(request: Request, env: Env) {
   if (shouldUseMockAuth(env)) {
     return new Response(null, {
       status: 302,
-      headers: createNoStoreHeaders({ Location: "/" })
+      headers: createNoStoreHeaders({ Location: "/" }),
     });
   }
 
   const state = crypto.randomUUID();
   const headers = createNoStoreHeaders({
-    Location: getAuthorizeUrl(request, env, state)
+    Location: getAuthorizeUrl(request, env, state),
   });
 
   headers.append(
@@ -221,8 +218,8 @@ export function handleGitHubLogin(request: Request, env: Env) {
     buildCookie(GITHUB_STATE_COOKIE, state, {
       httpOnly: true,
       maxAge: 600,
-      secure: shouldUseSecureCookies(request)
-    })
+      secure: shouldUseSecureCookies(request),
+    }),
   );
 
   return new Response(null, { status: 302, headers });
@@ -241,14 +238,14 @@ export async function handleGitHubCallback(request: Request, env: Env) {
   if (oauthError) {
     return new Response(`GitHub OAuth failed: ${oauthError}`, {
       status: 400,
-      headers
+      headers,
     });
   }
 
   if (!code || !returnedState || returnedState !== expectedState) {
     return new Response("Invalid GitHub OAuth callback", {
       status: 400,
-      headers
+      headers,
     });
   }
 
@@ -258,7 +255,7 @@ export async function handleGitHubCallback(request: Request, env: Env) {
   if (!user) {
     return new Response("GitHub access token was rejected", {
       status: 401,
-      headers
+      headers,
     });
   }
 
@@ -267,8 +264,8 @@ export async function handleGitHubCallback(request: Request, env: Env) {
     "Set-Cookie",
     buildCookie(GITHUB_TOKEN_COOKIE, token, {
       httpOnly: true,
-      secure: shouldUseSecureCookies(request)
-    })
+      secure: shouldUseSecureCookies(request),
+    }),
   );
 
   return new Response(null, { status: 302, headers });

@@ -11,39 +11,39 @@
     // MyAssistant is through `/chat*` after the Worker verifies the
     // authenticated GitHub user, so the browser cannot address another
     // user's DO directly by name.
-    "run_worker_first": ["/auth/*", "/chat", "/chat/*"]
+    "run_worker_first": ["/auth/*", "/chat", "/chat/*"],
   },
   "durable_objects": {
     "bindings": [
       {
         "class_name": "AssistantDirectory",
-        "name": "AssistantDirectory"
+        "name": "AssistantDirectory",
       },
       {
         "class_name": "MyAssistant",
-        "name": "MyAssistant"
+        "name": "MyAssistant",
       },
       {
         "class_name": "ExecutionAgent",
-        "name": "ExecutionAgent"
-      }
-    ]
+        "name": "ExecutionAgent",
+      },
+    ],
   },
   "worker_loaders": [{ "binding": "LOADER" }],
   "main": "src/server.ts",
   "migrations": [
     {
       "new_sqlite_classes": ["MyAssistant"],
-      "tag": "v1"
+      "tag": "v1",
     },
     {
       "new_sqlite_classes": ["AssistantDirectory"],
-      "tag": "v2"
+      "tag": "v2",
     },
     {
       "new_sqlite_classes": ["ExecutionAgent"],
-      "tag": "v3"
-    }
+      "tag": "v3",
+    },
   ],
-  "name": "think-assistant"
+  "name": "think-assistant",
 }

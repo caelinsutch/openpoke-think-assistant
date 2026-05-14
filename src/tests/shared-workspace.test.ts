@@ -22,10 +22,7 @@ import { MyAssistant } from "../server";
 
 describe("SharedWorkspace — cross-chat round-trip", () => {
   it("file written inside chat A is visible inside chat B", async () => {
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      uniqueDirectoryName()
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, uniqueDirectoryName());
     const a = await directory.createChat({ title: "A" });
     const b = await directory.createChat({ title: "B" });
 
@@ -51,10 +48,7 @@ describe("SharedWorkspace — cross-chat round-trip", () => {
   });
 
   it("directory-level reads and child-proxy reads see the same content", async () => {
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      uniqueDirectoryName()
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, uniqueDirectoryName());
     const { id } = await directory.createChat();
     const child = await getSubAgentByName(directory, MyAssistant, id);
 
@@ -68,10 +62,7 @@ describe("SharedWorkspace — cross-chat round-trip", () => {
   });
 
   it("readWorkspaceFile returns null for a missing path (proxy doesn't throw)", async () => {
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      uniqueDirectoryName()
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, uniqueDirectoryName());
     const { id } = await directory.createChat();
     const child = await getSubAgentByName(directory, MyAssistant, id);
 
@@ -80,10 +71,7 @@ describe("SharedWorkspace — cross-chat round-trip", () => {
   });
 
   it("listWorkspaceFiles handles errors as an empty list (proxy doesn't throw)", async () => {
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      uniqueDirectoryName()
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, uniqueDirectoryName());
     const { id } = await directory.createChat();
     const child = await getSubAgentByName(directory, MyAssistant, id);
 

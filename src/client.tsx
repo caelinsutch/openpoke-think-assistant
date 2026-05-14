@@ -20,14 +20,7 @@
 
 import "./styles.css";
 import { createRoot } from "react-dom/client";
-import {
-  Suspense,
-  useCallback,
-  useState,
-  useEffect,
-  useRef,
-  type ReactNode
-} from "react";
+import { Suspense, useCallback, useState, useEffect, useRef, type ReactNode } from "react";
 import { useAgent } from "agents/react";
 import { useAgentChat } from "@cloudflare/ai-chat/react";
 import { isToolUIPart, getToolName } from "ai";
@@ -41,7 +34,7 @@ import {
   Empty,
   Surface,
   Text,
-  PoweredByCloudflare
+  PoweredByCloudflare,
 } from "@cloudflare/kumo";
 import {
   PaperPlaneRightIcon,
@@ -70,14 +63,9 @@ import {
   SlidersHorizontalIcon,
   FileTextIcon,
   PencilIcon,
-  ChatsIcon
+  ChatsIcon,
 } from "@phosphor-icons/react";
-import {
-  fetchCurrentUser,
-  signOut,
-  startGitHubLogin,
-  type AuthUser
-} from "./auth-client";
+import { fetchCurrentUser, signOut, startGitHubLogin, type AuthUser } from "./auth-client";
 import { useChats } from "./use-chats";
 import type { ChatSummary } from "./server";
 
@@ -111,9 +99,7 @@ function ConnectionIndicator({ status }: { status: ConnectionStatus }) {
 }
 
 function ModeToggle() {
-  const [mode, setMode] = useState(
-    () => localStorage.getItem("theme") || "light"
-  );
+  const [mode, setMode] = useState(() => localStorage.getItem("theme") || "light");
 
   useEffect(() => {
     document.documentElement.setAttribute("data-mode", mode);
@@ -140,10 +126,7 @@ function getMessageText(message: UIMessage): string {
 }
 
 /** Text and reasoning parts use `state: streaming` with empty `text` until the first delta. */
-function shouldShowStreamedTextPart(part: {
-  text: string;
-  state?: "streaming" | "done";
-}): boolean {
+function shouldShowStreamedTextPart(part: { text: string; state?: "streaming" | "done" }): boolean {
   return part.text.length > 0 || part.state === "streaming";
 }
 
@@ -155,7 +138,7 @@ function Chat({
   addMcpServer,
   removeMcpServer,
   onRequestRename,
-  onRequestDelete
+  onRequestDelete,
 }: {
   chatId: string;
   chatTitle: string;
@@ -178,15 +161,14 @@ function Chat({
    */
   addMcpServer: (
     name: string,
-    url: string
+    url: string,
   ) => Promise<{ id: string; state: string; authUrl?: string }>;
   /** Remove an MCP server from the shared registry. */
   removeMcpServer: (id: string) => Promise<void>;
   onRequestRename: () => void;
   onRequestDelete: () => void;
 }) {
-  const [connectionStatus, setConnectionStatus] =
-    useState<ConnectionStatus>("connecting");
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showMcpPanel, setShowMcpPanel] = useState(false);
@@ -207,9 +189,7 @@ function Chat({
 
   const [showExtensionsPanel, setShowExtensionsPanel] = useState(false);
   const extensionsPanelRef = useRef<HTMLDivElement>(null);
-  const [extensions, setExtensions] = useState<
-    { name: string; tools: string[] }[]
-  >([]);
+  const [extensions, setExtensions] = useState<{ name: string; tools: string[] }[]>([]);
 
   const [showConfigPanel, setShowConfigPanel] = useState(false);
   const configPanelRef = useRef<HTMLDivElement>(null);
@@ -233,19 +213,13 @@ function Chat({
     sub: [{ agent: "MyAssistant", name: chatId }],
     onOpen: useCallback(() => setConnectionStatus("connected"), []),
     onClose: useCallback(() => setConnectionStatus("disconnected"), []),
-    onError: useCallback(
-      (error: Event) => console.error("WebSocket error:", error),
-      []
-    )
+    onError: useCallback((error: Event) => console.error("WebSocket error:", error), []),
   });
 
   useEffect(() => {
     if (!showMcpPanel) return;
     function handleClickOutside(e: MouseEvent) {
-      if (
-        mcpPanelRef.current &&
-        !mcpPanelRef.current.contains(e.target as Node)
-      ) {
+      if (mcpPanelRef.current && !mcpPanelRef.current.contains(e.target as Node)) {
         setShowMcpPanel(false);
       }
     }
@@ -256,10 +230,7 @@ function Chat({
   useEffect(() => {
     if (!showFilesPanel) return;
     function handleClickOutside(e: MouseEvent) {
-      if (
-        filesPanelRef.current &&
-        !filesPanelRef.current.contains(e.target as Node)
-      ) {
+      if (filesPanelRef.current && !filesPanelRef.current.contains(e.target as Node)) {
         setShowFilesPanel(false);
       }
     }
@@ -270,10 +241,7 @@ function Chat({
   useEffect(() => {
     if (!showExtensionsPanel) return;
     function handleClickOutside(e: MouseEvent) {
-      if (
-        extensionsPanelRef.current &&
-        !extensionsPanelRef.current.contains(e.target as Node)
-      ) {
+      if (extensionsPanelRef.current && !extensionsPanelRef.current.contains(e.target as Node)) {
         setShowExtensionsPanel(false);
       }
     }
@@ -284,10 +252,7 @@ function Chat({
   useEffect(() => {
     if (!showConfigPanel) return;
     function handleClickOutside(e: MouseEvent) {
-      if (
-        configPanelRef.current &&
-        !configPanelRef.current.contains(e.target as Node)
-      ) {
+      if (configPanelRef.current && !configPanelRef.current.contains(e.target as Node)) {
         setShowConfigPanel(false);
       }
     }
@@ -298,9 +263,7 @@ function Chat({
   const refreshWorkspaceFiles = useCallback(async () => {
     try {
       const files = await agent.call("listWorkspaceFiles", ["/"]);
-      setWorkspaceFiles(
-        files as { name: string; type: string; size?: number }[]
-      );
+      setWorkspaceFiles(files as { name: string; type: string; size?: number }[]);
     } catch {
       setWorkspaceFiles([]);
     }
@@ -329,9 +292,7 @@ function Chat({
   const refreshConfig = useCallback(async () => {
     try {
       const config = await agent.call("currentConfig", []);
-      setAgentConfig(
-        config as { modelTier: "fast" | "capable"; persona: string } | null
-      );
+      setAgentConfig(config as { modelTier: "fast" | "capable"; persona: string } | null);
     } catch {
       setAgentConfig(null);
     }
@@ -377,7 +338,7 @@ function Chat({
     stop,
     isStreaming,
     error,
-    clearError
+    clearError,
   } = useAgentChat({
     agent,
     getInitialMessages: null,
@@ -387,11 +348,11 @@ function Chat({
           toolCallId: toolCall.toolCallId,
           output: {
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            localTime: new Date().toLocaleTimeString()
-          }
+            localTime: new Date().toLocaleTimeString(),
+          },
         });
       }
-    }
+    },
   });
 
   const isConnected = connectionStatus === "connected";
@@ -405,16 +366,14 @@ function Chat({
   const fetchBranches = useCallback(
     async (userMessageId: string) => {
       try {
-        const versions = (await agent.call("getResponseVersions", [
-          userMessageId
-        ])) as UIMessage[];
+        const versions = (await agent.call("getResponseVersions", [userMessageId])) as UIMessage[];
         if (versions.length > 1) {
           setBranches((prev) => {
             const next = new Map(prev);
             const existing = prev.get(userMessageId);
             next.set(userMessageId, {
               versions,
-              selectedIndex: existing?.selectedIndex ?? versions.length - 1
+              selectedIndex: existing?.selectedIndex ?? versions.length - 1,
             });
             return next;
           });
@@ -423,7 +382,7 @@ function Chat({
         // Server may not support getBranches yet
       }
     },
-    [agent]
+    [agent],
   );
 
   // After messages update, fetch branches for user messages that precede
@@ -480,9 +439,7 @@ function Chat({
       <header className="px-5 py-3 bg-kumo-base border-b border-kumo-line">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <h2 className="text-base font-semibold text-kumo-default truncate">
-              {chatTitle}
-            </h2>
+            <h2 className="text-base font-semibold text-kumo-default truncate">{chatTitle}</h2>
             <Button
               variant="ghost"
               size="sm"
@@ -522,17 +479,12 @@ function Chat({
                   <Surface className="rounded-xl ring ring-kumo-line shadow-lg p-4 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <PlugsConnectedIcon
-                          size={16}
-                          className="text-kumo-accent"
-                        />
+                        <PlugsConnectedIcon size={16} className="text-kumo-accent" />
                         <Text size="sm" bold>
                           MCP Servers
                         </Text>
                         {serverEntries.length > 0 && (
-                          <Badge variant="secondary">
-                            {serverEntries.length}
-                          </Badge>
+                          <Badge variant="secondary">{serverEntries.length}</Badge>
                         )}
                       </div>
                       <Button
@@ -572,9 +524,7 @@ function Chat({
                           variant="primary"
                           size="sm"
                           icon={<PlusIcon size={14} />}
-                          disabled={
-                            isAddingServer || !mcpName.trim() || !mcpUrl.trim()
-                          }
+                          disabled={isAddingServer || !mcpName.trim() || !mcpUrl.trim()}
                         >
                           {isAddingServer ? "..." : "Add"}
                         </Button>
@@ -615,23 +565,22 @@ function Chat({
                               )}
                             </div>
                             <div className="flex items-center gap-1 shrink-0 ml-2">
-                              {server.state === "authenticating" &&
-                                server.auth_url && (
-                                  <Button
-                                    variant="primary"
-                                    size="sm"
-                                    icon={<SignInIcon size={12} />}
-                                    onClick={() =>
-                                      window.open(
-                                        server.auth_url as string,
-                                        "oauth",
-                                        "width=600,height=800"
-                                      )
-                                    }
-                                  >
-                                    Auth
-                                  </Button>
-                                )}
+                              {server.state === "authenticating" && server.auth_url && (
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  icon={<SignInIcon size={12} />}
+                                  onClick={() =>
+                                    window.open(
+                                      server.auth_url as string,
+                                      "oauth",
+                                      "width=600,height=800",
+                                    )
+                                  }
+                                >
+                                  Auth
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -652,8 +601,7 @@ function Chat({
                           <WrenchIcon size={14} className="text-kumo-subtle" />
                           <span className="text-xs text-kumo-subtle">
                             {mcpToolCount} tool
-                            {mcpToolCount !== 1 ? "s" : ""} available from MCP
-                            servers
+                            {mcpToolCount !== 1 ? "s" : ""} available from MCP servers
                           </span>
                         </div>
                       </div>
@@ -678,16 +626,11 @@ function Chat({
                   <Surface className="rounded-xl ring ring-kumo-line shadow-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <FolderOpenIcon
-                          size={16}
-                          className="text-kumo-accent"
-                        />
+                        <FolderOpenIcon size={16} className="text-kumo-accent" />
                         <Text size="sm" bold>
                           Workspace
                         </Text>
-                        <Badge variant="secondary">
-                          {workspaceFiles.length}
-                        </Badge>
+                        <Badge variant="secondary">{workspaceFiles.length}</Badge>
                       </div>
                       <Button
                         variant="ghost"
@@ -704,11 +647,7 @@ function Chat({
                     {fileContent ? (
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setFileContent(null)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => setFileContent(null)}>
                             <CaretLeftIcon size={12} /> Back
                           </Button>
                           <span className="text-xs font-mono text-kumo-subtle truncate">
@@ -731,29 +670,21 @@ function Chat({
                             className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-kumo-elevated text-left transition-colors"
                             onClick={async () => {
                               if (f.type === "file") {
-                                const content = await agent.call(
-                                  "readWorkspaceFile",
-                                  [`/${f.name}`]
-                                );
+                                const content = await agent.call("readWorkspaceFile", [
+                                  `/${f.name}`,
+                                ]);
                                 if (content)
                                   setFileContent({
                                     path: `/${f.name}`,
-                                    content: content as string
+                                    content: content as string,
                                   });
                               }
                             }}
                           >
-                            <FileTextIcon
-                              size={14}
-                              className="text-kumo-subtle shrink-0"
-                            />
-                            <span className="text-sm text-kumo-default truncate">
-                              {f.name}
-                            </span>
+                            <FileTextIcon size={14} className="text-kumo-subtle shrink-0" />
+                            <span className="text-sm text-kumo-default truncate">{f.name}</span>
                             {f.size != null && (
-                              <span className="text-xs text-kumo-inactive ml-auto">
-                                {f.size}b
-                              </span>
+                              <span className="text-xs text-kumo-inactive ml-auto">{f.size}b</span>
                             )}
                           </button>
                         ))}
@@ -779,10 +710,7 @@ function Chat({
                   <Surface className="rounded-xl ring ring-kumo-line shadow-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <PuzzlePieceIcon
-                          size={16}
-                          className="text-kumo-accent"
-                        />
+                        <PuzzlePieceIcon size={16} className="text-kumo-accent" />
                         <Text size="sm" bold>
                           Extensions
                         </Text>
@@ -799,23 +727,18 @@ function Chat({
                     </div>
                     {extensions.length === 0 ? (
                       <span className="text-xs text-kumo-subtle block">
-                        No extensions loaded. Ask the assistant to create one,
-                        e.g. "Create an extension that converts temperatures."
+                        No extensions loaded. Ask the assistant to create one, e.g. "Create an
+                        extension that converts temperatures."
                       </span>
                     ) : (
                       <div className="space-y-2 max-h-60 overflow-y-auto">
                         {extensions.map((ext) => (
-                          <div
-                            key={ext.name}
-                            className="p-2.5 rounded-lg border border-kumo-line"
-                          >
+                          <div key={ext.name} className="p-2.5 rounded-lg border border-kumo-line">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-kumo-default">
                                 {ext.name}
                               </span>
-                              <Badge variant="primary">
-                                {ext.tools.length} tools
-                              </Badge>
+                              <Badge variant="primary">{ext.tools.length} tools</Badge>
                             </div>
                             <div className="flex flex-wrap gap-1 mt-1.5">
                               {ext.tools.map((t) => (
@@ -848,10 +771,7 @@ function Chat({
                   <Surface className="rounded-xl ring ring-kumo-line shadow-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <SlidersHorizontalIcon
-                          size={16}
-                          className="text-kumo-accent"
-                        />
+                        <SlidersHorizontalIcon size={16} className="text-kumo-accent" />
                         <Text size="sm" bold>
                           Configuration
                         </Text>
@@ -886,7 +806,7 @@ function Chat({
                               onClick={async () => {
                                 const newConfig = {
                                   modelTier: tier,
-                                  persona: agentConfig?.persona ?? ""
+                                  persona: agentConfig?.persona ?? "",
                                 };
                                 await agent.call("updateConfig", [newConfig]);
                                 setAgentConfig(newConfig);
@@ -912,7 +832,7 @@ function Chat({
                           onChange={(e) =>
                             setAgentConfig((prev) => ({
                               modelTier: prev?.modelTier ?? "fast",
-                              persona: e.target.value
+                              persona: e.target.value,
                             }))
                           }
                           onBlur={async () => {
@@ -927,11 +847,7 @@ function Chat({
                 </div>
               )}
             </div>
-            <Button
-              variant="secondary"
-              icon={<TrashIcon size={16} />}
-              onClick={handleClearHistory}
-            >
+            <Button variant="secondary" icon={<TrashIcon size={16} />} onClick={handleClearHistory}>
               Clear
             </Button>
           </div>
@@ -944,24 +860,18 @@ function Chat({
             <>
               <Surface className="p-4 rounded-xl ring ring-kumo-line">
                 <div className="flex gap-3">
-                  <InfoIcon
-                    size={20}
-                    weight="bold"
-                    className="text-kumo-accent shrink-0 mt-0.5"
-                  />
+                  <InfoIcon size={20} weight="bold" className="text-kumo-accent shrink-0 mt-0.5" />
                   <div>
                     <Text size="sm" bold>
                       Think Assistant
                     </Text>
                     <span className="mt-1 block">
                       <Text size="xs" variant="secondary">
-                        A showcase of all Project Think features: workspace
-                        tools, sandboxed code execution, self-authored
-                        extensions, persistent memory, conversation compaction,
-                        full-text search, dynamic configuration, tool approval,
-                        response regeneration with version history, and MCP
-                        integration. Try "Execute some code to list all .ts
-                        files" or "Create an extension for temperature
+                        A showcase of all Project Think features: workspace tools, sandboxed code
+                        execution, self-authored extensions, persistent memory, conversation
+                        compaction, full-text search, dynamic configuration, tool approval, response
+                        regeneration with version history, and MCP integration. Try "Execute some
+                        code to list all .ts files" or "Create an extension for temperature
                         conversion."
                       </Text>
                     </span>
@@ -978,8 +888,7 @@ function Chat({
 
           {messages.map((message, index) => {
             const isUser = message.role === "user";
-            const isLastAssistant =
-              message.role === "assistant" && index === messages.length - 1;
+            const isLastAssistant = message.role === "assistant" && index === messages.length - 1;
 
             if (isUser) {
               return (
@@ -993,15 +902,10 @@ function Chat({
 
             const parentMessageIndex = index > 0 ? index - 1 : -1;
             const parentMessageId =
-              parentMessageIndex >= 0
-                ? messages[parentMessageIndex].id
-                : undefined;
-            const branchInfo = parentMessageId
-              ? branches.get(parentMessageId)
-              : undefined;
+              parentMessageIndex >= 0 ? messages[parentMessageIndex].id : undefined;
+            const branchInfo = parentMessageId ? branches.get(parentMessageId) : undefined;
             const displayMessage =
-              branchInfo &&
-              branchInfo.selectedIndex < branchInfo.versions.length - 1
+              branchInfo && branchInfo.selectedIndex < branchInfo.versions.length - 1
                 ? branchInfo.versions[branchInfo.selectedIndex]
                 : message;
 
@@ -1017,13 +921,10 @@ function Chat({
                       <div key={partIndex} className="flex justify-start">
                         <div className="max-w-[85%] px-4 py-2.5 rounded-2xl rounded-bl-md bg-kumo-base text-kumo-default leading-relaxed">
                           <div className="whitespace-pre-wrap min-h-[1.25em]">
-                            {part.text ||
-                              (part.state === "streaming" ? "\u00a0" : null)}
-                            {isLastAssistant &&
-                              isLastTextPart &&
-                              isStreaming && (
-                                <span className="inline-block w-0.5 h-[1em] bg-kumo-brand ml-0.5 align-text-bottom animate-blink-cursor" />
-                              )}
+                            {part.text || (part.state === "streaming" ? "\u00a0" : null)}
+                            {isLastAssistant && isLastTextPart && isStreaming && (
+                              <span className="inline-block w-0.5 h-[1em] bg-kumo-brand ml-0.5 align-text-bottom animate-blink-cursor" />
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1036,17 +937,13 @@ function Chat({
                       <div key={partIndex} className="flex justify-start">
                         <Surface className="max-w-[85%] px-4 py-2.5 rounded-xl ring ring-kumo-line opacity-70">
                           <div className="flex items-center gap-2 mb-1">
-                            <GearIcon
-                              size={14}
-                              className="text-kumo-inactive"
-                            />
+                            <GearIcon size={14} className="text-kumo-inactive" />
                             <Text size="xs" variant="secondary" bold>
                               Reasoning
                             </Text>
                           </div>
                           <div className="whitespace-pre-wrap text-xs text-kumo-subtle italic min-h-[1em]">
-                            {part.text ||
-                              (part.state === "streaming" ? "…" : null)}
+                            {part.text || (part.state === "streaming" ? "…" : null)}
                           </div>
                         </Surface>
                       </div>
@@ -1061,10 +958,7 @@ function Chat({
                       <div key={part.toolCallId} className="flex justify-start">
                         <Surface className="max-w-[85%] px-4 py-2.5 rounded-xl ring ring-kumo-line">
                           <div className="flex items-center gap-2 mb-1">
-                            <GearIcon
-                              size={14}
-                              className="text-kumo-inactive"
-                            />
+                            <GearIcon size={14} className="text-kumo-inactive" />
                             <Text size="xs" variant="secondary" bold>
                               {toolName}
                             </Text>
@@ -1093,10 +987,7 @@ function Chat({
                     );
                   }
 
-                  if (
-                    "approval" in part &&
-                    part.state === "approval-requested"
-                  ) {
+                  if ("approval" in part && part.state === "approval-requested") {
                     const approvalId = (part.approval as { id?: string })?.id;
                     return (
                       <div key={part.toolCallId} className="flex justify-start">
@@ -1121,7 +1012,7 @@ function Chat({
                                 if (approvalId) {
                                   addToolApprovalResponse({
                                     id: approvalId,
-                                    approved: true
+                                    approved: true,
                                   });
                                 }
                               }}
@@ -1136,7 +1027,7 @@ function Chat({
                                 if (approvalId) {
                                   addToolApprovalResponse({
                                     id: approvalId,
-                                    approved: false
+                                    approved: false,
                                   });
                                 }
                               }}
@@ -1154,10 +1045,7 @@ function Chat({
                       <div key={part.toolCallId} className="flex justify-start">
                         <Surface className="max-w-[85%] px-4 py-2.5 rounded-xl ring ring-kumo-line">
                           <div className="flex items-center gap-2">
-                            <XCircleIcon
-                              size={14}
-                              className="text-kumo-inactive"
-                            />
+                            <XCircleIcon size={14} className="text-kumo-inactive" />
                             <Text size="xs" variant="secondary" bold>
                               {toolName}
                             </Text>
@@ -1168,18 +1056,12 @@ function Chat({
                     );
                   }
 
-                  if (
-                    part.state === "input-available" ||
-                    part.state === "input-streaming"
-                  ) {
+                  if (part.state === "input-available" || part.state === "input-streaming") {
                     return (
                       <div key={part.toolCallId} className="flex justify-start">
                         <Surface className="max-w-[85%] px-4 py-2.5 rounded-xl ring ring-kumo-line">
                           <div className="flex items-center gap-2 mb-1">
-                            <GearIcon
-                              size={14}
-                              className="text-kumo-inactive animate-spin"
-                            />
+                            <GearIcon size={14} className="text-kumo-inactive animate-spin" />
                             <Text size="xs" variant="secondary" bold>
                               Running {toolName}...
                             </Text>
@@ -1205,8 +1087,7 @@ function Chat({
                 {!isStreaming &&
                   message.role === "assistant" &&
                   parentMessageIndex >= 0 &&
-                  (isLastAssistant ||
-                    (branchInfo && branchInfo.versions.length > 1)) && (
+                  (isLastAssistant || (branchInfo && branchInfo.versions.length > 1)) && (
                     <div className="flex items-center gap-1 mt-1 ml-1">
                       {isLastAssistant && (
                         <Button
@@ -1229,32 +1110,22 @@ function Chat({
                             icon={<CaretLeftIcon size={12} />}
                             onClick={() =>
                               parentMessageId &&
-                              selectBranch(
-                                parentMessageId,
-                                branchInfo.selectedIndex - 1
-                              )
+                              selectBranch(parentMessageId, branchInfo.selectedIndex - 1)
                             }
                           />
                           <span className="text-xs text-kumo-subtle tabular-nums px-0.5">
-                            {branchInfo.selectedIndex + 1}/
-                            {branchInfo.versions.length}
+                            {branchInfo.selectedIndex + 1}/{branchInfo.versions.length}
                           </span>
                           <Button
                             variant="ghost"
                             size="sm"
                             shape="square"
                             aria-label="Next version"
-                            disabled={
-                              branchInfo.selectedIndex ===
-                              branchInfo.versions.length - 1
-                            }
+                            disabled={branchInfo.selectedIndex === branchInfo.versions.length - 1}
                             icon={<CaretRightIcon size={12} />}
                             onClick={() =>
                               parentMessageId &&
-                              selectBranch(
-                                parentMessageId,
-                                branchInfo.selectedIndex + 1
-                              )
+                              selectBranch(parentMessageId, branchInfo.selectedIndex + 1)
                             }
                           />
                         </div>
@@ -1271,11 +1142,7 @@ function Chat({
 
       <div className="border-t border-kumo-line bg-kumo-base">
         {error && (
-          <div
-            className="max-w-3xl mx-auto px-5 pt-3"
-            role="alert"
-            aria-live="polite"
-          >
+          <div className="max-w-3xl mx-auto px-5 pt-3" role="alert" aria-live="polite">
             <Surface className="rounded-lg ring ring-kumo-danger/50 bg-red-500/10 px-3 py-2">
               <Text size="xs" variant="error">
                 {error.message}
@@ -1338,7 +1205,7 @@ function Chat({
 
 function AuthShell({
   children,
-  align = "center"
+  align = "center",
 }: {
   children: ReactNode;
   align?: "center" | "start";
@@ -1351,9 +1218,7 @@ function AuthShell({
         </div>
       </header>
       <div
-        className={`flex-1 py-12 ${
-          align === "center" ? "flex items-center justify-center" : ""
-        }`}
+        className={`flex-1 py-12 ${align === "center" ? "flex items-center justify-center" : ""}`}
       >
         <div className="w-full max-w-lg px-6">{children}</div>
       </div>
@@ -1370,11 +1235,7 @@ function LoadingView({ message = "Loading..." }: { message?: string }) {
       <Surface className="px-10 py-12 rounded-2xl ring ring-kumo-line">
         <div className="flex items-center gap-3 mb-3">
           <div className="flex items-center justify-center w-10 h-10 rounded-full bg-kumo-brand/10">
-            <ShieldCheckIcon
-              size={20}
-              weight="bold"
-              className="text-kumo-brand"
-            />
+            <ShieldCheckIcon size={20} weight="bold" className="text-kumo-brand" />
           </div>
           <Text variant="heading1" as="h1">
             Assistant
@@ -1393,39 +1254,30 @@ function SignInView({ error }: { error: string | null }) {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-full bg-kumo-brand/10">
-              <GithubLogoIcon
-                size={20}
-                weight="fill"
-                className="text-kumo-brand"
-              />
+              <GithubLogoIcon size={20} weight="fill" className="text-kumo-brand" />
             </div>
             <Text variant="heading1" as="h1">
               Assistant
             </Text>
           </div>
           <Text variant="secondary">
-            Sign in with GitHub, then connect to a user-scoped Think assistant
-            chosen by the Worker. No local token storage, no browser-chosen room
-            names.
+            Sign in with GitHub, then connect to a user-scoped Think assistant chosen by the Worker.
+            No local token storage, no browser-chosen room names.
           </Text>
         </div>
 
         <Surface className="p-4 rounded-xl ring ring-kumo-line">
           <div className="flex gap-3">
-            <InfoIcon
-              size={20}
-              weight="bold"
-              className="text-kumo-accent shrink-0 mt-0.5"
-            />
+            <InfoIcon size={20} weight="bold" className="text-kumo-accent shrink-0 mt-0.5" />
             <div>
               <Text size="sm" bold>
                 Before you start
               </Text>
               <span className="mt-1 block">
                 <Text size="xs" variant="secondary">
-                  Create a GitHub OAuth App and add `GITHUB_CLIENT_ID` plus
-                  `GITHUB_CLIENT_SECRET` to `.env`. The README walks through the
-                  exact callback URL to use for local development.
+                  Create a GitHub OAuth App and add `GITHUB_CLIENT_ID` plus `GITHUB_CLIENT_SECRET`
+                  to `.env`. The README walks through the exact callback URL to use for local
+                  development.
                 </Text>
               </span>
             </div>
@@ -1464,7 +1316,7 @@ function ChatSidebar({
   onRename,
   onDelete,
   user,
-  onSignOut
+  onSignOut,
 }: {
   chats: ChatSummary[];
   activeId: string | null;
@@ -1595,13 +1447,7 @@ function ChatSidebar({
 
 // ── Multi-chat shell (sidebar + active chat) ───────────────────────────
 
-function MultiChatApp({
-  user,
-  onSignOut
-}: {
-  user: AuthUser;
-  onSignOut: () => void;
-}) {
+function MultiChatApp({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const {
     directory,
     chats,
@@ -1611,7 +1457,7 @@ function MultiChatApp({
     renameChat,
     deleteChat,
     addMcpServer,
-    removeMcpServer
+    removeMcpServer,
   } = useChats();
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -1650,7 +1496,7 @@ function MultiChatApp({
         console.error("Failed to rename chat:", err);
       }
     },
-    [renameChat]
+    [renameChat],
   );
 
   const handleDelete = useCallback(
@@ -1664,11 +1510,10 @@ function MultiChatApp({
         console.error("Failed to delete chat:", err);
       }
     },
-    [deleteChat]
+    [deleteChat],
   );
 
-  const activeChat =
-    activeId !== null ? chats.find((c) => c.id === activeId) : undefined;
+  const activeChat = activeId !== null ? chats.find((c) => c.id === activeId) : undefined;
   const directoryReady = directory.readyState === 1;
 
   const handleSignOut = useCallback(async () => {
@@ -1696,10 +1541,7 @@ function MultiChatApp({
           // `key={activeChat.id}` forces a full remount across chat
           // switches so the chat's local state (MCP panel, file browser,
           // branch map, input draft) all reset cleanly.
-          <Suspense
-            key={activeChat.id}
-            fallback={<LoadingView message="Loading chat…" />}
-          >
+          <Suspense key={activeChat.id} fallback={<LoadingView message="Loading chat…" />}>
             <Chat
               chatId={activeChat.id}
               chatTitle={activeChat.title}
@@ -1726,7 +1568,7 @@ function MultiChatApp({
 function EmptyChatView({
   ready,
   onCreate,
-  hasChats
+  hasChats,
 }: {
   ready: boolean;
   onCreate: () => void;
@@ -1747,11 +1589,7 @@ function EmptyChatView({
           title="No chats yet"
           description="Files and MCP servers are shared across every chat. Messages and extensions stay per-chat."
         />
-        <Button
-          variant="primary"
-          icon={<PlusIcon size={14} />}
-          onClick={onCreate}
-        >
+        <Button variant="primary" icon={<PlusIcon size={14} />} onClick={onCreate}>
           New chat
         </Button>
       </div>
@@ -1773,10 +1611,7 @@ function AuthenticatedApp() {
         setUser(currentUser);
         setError(null);
       } catch (loadError) {
-        if (
-          loadError instanceof DOMException &&
-          loadError.name === "AbortError"
-        ) {
+        if (loadError instanceof DOMException && loadError.name === "AbortError") {
           return;
         }
         setUser(null);

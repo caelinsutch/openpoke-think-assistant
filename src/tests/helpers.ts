@@ -10,7 +10,7 @@ import type { DirectoryState } from "../server";
  */
 export async function connectWS(path: string): Promise<{ ws: WebSocket }> {
   const res = await exports.default.fetch(`http://example.com${path}`, {
-    headers: { Upgrade: "websocket" }
+    headers: { Upgrade: "websocket" },
   });
   expect(res.status).toBe(101);
   const ws = res.webSocket as WebSocket;
@@ -28,7 +28,7 @@ export function nextMessage(ws: WebSocket, timeoutMs = 1500): Promise<string> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
       () => reject(new Error("Timeout waiting for WebSocket message")),
-      timeoutMs
+      timeoutMs,
     );
     ws.addEventListener(
       "message",
@@ -36,7 +36,7 @@ export function nextMessage(ws: WebSocket, timeoutMs = 1500): Promise<string> {
         clearTimeout(timer);
         resolve(typeof e.data === "string" ? e.data : "");
       },
-      { once: true }
+      { once: true },
     );
   });
 }
@@ -50,7 +50,7 @@ export function nextMessage(ws: WebSocket, timeoutMs = 1500): Promise<string> {
 export async function waitForMatching<T = unknown>(
   ws: WebSocket,
   predicate: (msg: T) => boolean,
-  timeoutMs = 2000
+  timeoutMs = 2000,
 ): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -87,12 +87,8 @@ export function uniqueDirectoryName(prefix = "alice"): string {
  * in `packages/agents/src/tests` add for convenience — we deliberately
  * don't modify the production class.
  */
-export async function readDirectoryState(
-  directoryName: string
-): Promise<DirectoryState> {
-  const { ws } = await connectWS(
-    `/agents/assistant-directory/${directoryName}`
-  );
+export async function readDirectoryState(directoryName: string): Promise<DirectoryState> {
+  const { ws } = await connectWS(`/agents/assistant-directory/${directoryName}`);
   try {
     const frame = await waitForMatching<{ type?: string; state?: unknown }>(
       ws,
@@ -100,7 +96,7 @@ export async function readDirectoryState(
         typeof msg === "object" &&
         msg !== null &&
         (msg as { type?: string }).type === "cf_agent_state",
-      3000
+      3000,
     );
     return frame.state as DirectoryState;
   } finally {

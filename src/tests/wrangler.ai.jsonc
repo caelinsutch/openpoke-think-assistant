@@ -10,34 +10,30 @@
     "enable_nodejs_http_modules",
     "enable_nodejs_perf_hooks_module",
     "enable_nodejs_v8_module",
-    "enable_nodejs_process_v2"
+    "enable_nodejs_process_v2",
   ],
   "durable_objects": {
     "bindings": [
       {
         "class_name": "AssistantDirectory",
-        "name": "AssistantDirectory"
+        "name": "AssistantDirectory",
       },
       {
         "class_name": "MyAssistant",
-        "name": "MyAssistant"
+        "name": "MyAssistant",
       },
       {
         "class_name": "ExecutionAgent",
-        "name": "ExecutionAgent"
-      }
-    ]
+        "name": "ExecutionAgent",
+      },
+    ],
   },
   "worker_loaders": [{ "binding": "LOADER" }],
   "main": "worker.ts",
   "migrations": [
     {
-      "new_sqlite_classes": [
-        "AssistantDirectory",
-        "MyAssistant",
-        "ExecutionAgent"
-      ],
-      "tag": "v1"
-    }
-  ]
+      "new_sqlite_classes": ["AssistantDirectory", "MyAssistant", "ExecutionAgent"],
+      "tag": "v1",
+    },
+  ],
 }

@@ -28,7 +28,7 @@ describe("AssistantDirectory — onBeforeSubAgent strict-registry gate", () => {
     await getAgentByName(env.AssistantDirectory, directoryName);
 
     const res = await exports.default.fetch(
-      `http://example.com${subAgentPath(directoryName, "ghost-chat")}`
+      `http://example.com${subAgentPath(directoryName, "ghost-chat")}`,
     );
 
     expect(res.status).toBe(404);
@@ -37,10 +37,7 @@ describe("AssistantDirectory — onBeforeSubAgent strict-registry gate", () => {
 
   it("forwards to the child when the chat was created via createChat", async () => {
     const directoryName = uniqueDirectoryName();
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      directoryName
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, directoryName);
     const { id } = await directory.createChat({ title: "Real chat" });
 
     // A successful WebSocket upgrade against the sub-agent URL is the
@@ -50,7 +47,7 @@ describe("AssistantDirectory — onBeforeSubAgent strict-registry gate", () => {
     // response instead of a 101.
     const res = await exports.default.fetch(
       `http://example.com${subAgentPath(directoryName, id)}`,
-      { headers: { Upgrade: "websocket" } }
+      { headers: { Upgrade: "websocket" } },
     );
 
     expect(res.status).toBe(101);
@@ -63,16 +60,11 @@ describe("AssistantDirectory — onBeforeSubAgent strict-registry gate", () => {
 
   it("rejects a chat id that was created and then deleted", async () => {
     const directoryName = uniqueDirectoryName();
-    const directory = await getAgentByName(
-      env.AssistantDirectory,
-      directoryName
-    );
+    const directory = await getAgentByName(env.AssistantDirectory, directoryName);
     const { id } = await directory.createChat();
     await directory.deleteChat(id);
 
-    const res = await exports.default.fetch(
-      `http://example.com${subAgentPath(directoryName, id)}`
-    );
+    const res = await exports.default.fetch(`http://example.com${subAgentPath(directoryName, id)}`);
     expect(res.status).toBe(404);
   });
 });

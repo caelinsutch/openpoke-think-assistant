@@ -10,9 +10,9 @@ export default defineConfig({
     agents(),
     cloudflareTest({
       wrangler: {
-        configPath: path.join(testsDir, "wrangler.ai.jsonc")
-      }
-    })
+        configPath: path.join(testsDir, "wrangler.ai.jsonc"),
+      },
+    }),
   ],
   test: {
     name: "assistant-example-ai-e2e",
@@ -22,9 +22,9 @@ export default defineConfig({
     deps: {
       optimizer: {
         ssr: {
-          include: ["ajv"]
-        }
-      }
-    }
-  }
+          include: ["ajv"],
+        },
+      },
+    },
+  },
 });

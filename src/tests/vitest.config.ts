@@ -10,9 +10,9 @@ export default defineConfig({
     agents(),
     cloudflareTest({
       wrangler: {
-        configPath: path.join(testsDir, "wrangler.jsonc")
-      }
-    })
+        configPath: path.join(testsDir, "wrangler.jsonc"),
+      },
+    }),
   ],
   test: {
     name: "assistant-example",
@@ -26,9 +26,9 @@ export default defineConfig({
           // ajv ships its schema files via require('./*.json') which
           // vitest can't resolve without an explicit hint. Same fix
           // packages/ai-chat and packages/agents use.
-          include: ["ajv"]
-        }
-      }
-    }
-  }
+          include: ["ajv"],
+        },
+      },
+    },
+  },
 });
