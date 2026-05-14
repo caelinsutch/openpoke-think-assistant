@@ -10,22 +10,18 @@ export default defineConfig({
     agents(),
     cloudflareTest({
       wrangler: {
-        configPath: path.join(testsDir, "wrangler.jsonc")
+        configPath: path.join(testsDir, "wrangler.ai.jsonc")
       }
     })
   ],
   test: {
-    name: "assistant-example",
-    include: [path.join(testsDir, "**/*.test.ts")],
-    exclude: [path.join(testsDir, "e2e-ai.test.ts")],
+    name: "assistant-example-ai-e2e",
+    include: [path.join(testsDir, "e2e-ai.test.ts")],
     setupFiles: [path.join(testsDir, "setup.ts")],
-    testTimeout: 15_000,
+    testTimeout: 60_000,
     deps: {
       optimizer: {
         ssr: {
-          // ajv ships its schema files via require('./*.json') which
-          // vitest can't resolve without an explicit hint. Same fix
-          // packages/ai-chat and packages/agents use.
           include: ["ajv"]
         }
       }

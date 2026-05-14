@@ -6,6 +6,7 @@ the sub-agent routing primitive from `agents`. The visible chat acts as the inte
 ## What this demonstrates
 
 - **OpenPoke-style execution agents** — visible `MyAssistant` chats can list, create, and delegate to hidden `ExecutionAgent` facets. Execution agents persist their role, instructions, event log, and latest result so follow-up work can route back to the same durable worker thread.
+- **Durable tasks and cron triggers** — `AssistantDirectory` stores task and trigger records, schedules cron triggers from the parent, and routes triggered runs back to the owning execution agent.
 - **Multi-session via sub-agent routing** — each user gets an `AssistantDirectory`
   parent DO that owns the sidebar. Each chat is its own `MyAssistant` facet
   (full Think DO — own extensions, memory, messages). Addressed transparently

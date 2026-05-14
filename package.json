@@ -10,6 +10,7 @@
     "build": "vite build",
     "deploy": "vite build && wrangler deploy",
     "test": "vitest --run --config src/tests/vitest.config.ts",
+    "test:e2e": "RUN_AI_E2E=1 vitest --run --config src/tests/vitest.ai.config.ts",
     "types": "wrangler types env.d.ts --include-runtime false"
   },
   "dependencies": {

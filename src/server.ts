@@ -138,6 +138,30 @@ export interface ExecutionAgentSummary {
   lastResult?: string;
 }
 
+export interface ExecutionTaskSummary {
+  id: string;
+  agentId: string;
+  title: string;
+  instructions: string;
+  status: "queued" | "running" | "done" | "error";
+  createdAt: number;
+  updatedAt: number;
+  lastRunAt?: number;
+  result?: string;
+}
+
+export interface ExecutionTriggerSummary {
+  id: string;
+  agentId: string;
+  taskId: string;
+  kind: "cron";
+  cron: string;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+  lastRunAt?: number;
+}
+
 type ExecutionAgentEvent = {
   id: string;
   type: "task" | "result" | "error";
@@ -362,6 +386,28 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       last_result TEXT
+    )`;
+    this.sql`CREATE TABLE IF NOT EXISTS execution_tasks (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      instructions TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_run_at INTEGER,
+      result TEXT
+    )`;
+    this.sql`CREATE TABLE IF NOT EXISTS execution_triggers (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      cron TEXT NOT NULL,
+      enabled INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_run_at INTEGER
     )`;
     this._refreshState();
 
@@ -619,6 +665,311 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     const summary = await agent.runTask(task, context);
     this._upsertExecutionAgentMeta(summary);
     return summary;
+  }
+
+  async listExecutionTasks(agentId?: string): Promise<ExecutionTaskSummary[]> {
+    const rows = agentId
+      ? this.sql<{
+          id: string;
+          agent_id: string;
+          title: string;
+          instructions: string;
+          status: ExecutionTaskSummary["status"];
+          created_at: number;
+          updated_at: number;
+          last_run_at: number | null;
+          result: string | null;
+        }>`SELECT id, agent_id, title, instructions, status, created_at, updated_at, last_run_at, result FROM execution_tasks WHERE agent_id = ${agentId}`
+      : this.sql<{
+          id: string;
+          agent_id: string;
+          title: string;
+          instructions: string;
+          status: ExecutionTaskSummary["status"];
+          created_at: number;
+          updated_at: number;
+          last_run_at: number | null;
+          result: string | null;
+        }>`SELECT id, agent_id, title, instructions, status, created_at, updated_at, last_run_at, result FROM execution_tasks`;
+
+    return rows
+      .map((row) => ({
+        id: row.id,
+        agentId: row.agent_id,
+        title: row.title,
+        instructions: row.instructions,
+        status: row.status,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        lastRunAt: row.last_run_at ?? undefined,
+        result: row.result ?? undefined
+      }))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  async createExecutionTask(opts: {
+    agentId: string;
+    title: string;
+    instructions: string;
+  }): Promise<ExecutionTaskSummary> {
+    if (!this.hasSubAgent("ExecutionAgent", opts.agentId)) {
+      throw new Error(`ExecutionAgent "${opts.agentId}" not found`);
+    }
+
+    const now = Date.now();
+    const task: ExecutionTaskSummary = {
+      id: nanoid(10),
+      agentId: opts.agentId,
+      title: opts.title.trim() || "Execution task",
+      instructions: opts.instructions.trim(),
+      status: "queued",
+      createdAt: now,
+      updatedAt: now
+    };
+    this._upsertExecutionTask(task);
+    return task;
+  }
+
+  async runExecutionTask(
+    taskId: string,
+    context?: string
+  ): Promise<ExecutionTaskSummary> {
+    const task = this._getExecutionTask(taskId);
+    if (!task) throw new Error(`Execution task "${taskId}" not found`);
+
+    const startedAt = Date.now();
+    this._upsertExecutionTask({
+      ...task,
+      status: "running",
+      updatedAt: startedAt,
+      lastRunAt: startedAt
+    });
+
+    const summary = await this.delegateToExecutionAgent(
+      task.agentId,
+      `${task.title}\n\n${task.instructions}`,
+      context
+    );
+
+    const finishedAt = Date.now();
+    const next: ExecutionTaskSummary = {
+      ...task,
+      status: summary.status === "error" ? "error" : "done",
+      updatedAt: finishedAt,
+      lastRunAt: finishedAt,
+      result: summary.lastResult
+    };
+    this._upsertExecutionTask(next);
+    return next;
+  }
+
+  async listExecutionTriggers(
+    agentId?: string
+  ): Promise<ExecutionTriggerSummary[]> {
+    const rows = agentId
+      ? this.sql<{
+          id: string;
+          agent_id: string;
+          task_id: string;
+          kind: "cron";
+          cron: string;
+          enabled: number;
+          created_at: number;
+          updated_at: number;
+          last_run_at: number | null;
+        }>`SELECT id, agent_id, task_id, kind, cron, enabled, created_at, updated_at, last_run_at FROM execution_triggers WHERE agent_id = ${agentId}`
+      : this.sql<{
+          id: string;
+          agent_id: string;
+          task_id: string;
+          kind: "cron";
+          cron: string;
+          enabled: number;
+          created_at: number;
+          updated_at: number;
+          last_run_at: number | null;
+        }>`SELECT id, agent_id, task_id, kind, cron, enabled, created_at, updated_at, last_run_at FROM execution_triggers`;
+
+    return rows
+      .map((row) => ({
+        id: row.id,
+        agentId: row.agent_id,
+        taskId: row.task_id,
+        kind: row.kind,
+        cron: row.cron,
+        enabled: row.enabled === 1,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        lastRunAt: row.last_run_at ?? undefined
+      }))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  async createExecutionTrigger(opts: {
+    agentId: string;
+    taskId: string;
+    cron: string;
+  }): Promise<ExecutionTriggerSummary> {
+    const task = this._getExecutionTask(opts.taskId);
+    if (!task) throw new Error(`Execution task "${opts.taskId}" not found`);
+    if (task.agentId !== opts.agentId) {
+      throw new Error("Execution trigger agentId must match the task owner");
+    }
+
+    const now = Date.now();
+    const trigger: ExecutionTriggerSummary = {
+      id: nanoid(10),
+      agentId: opts.agentId,
+      taskId: opts.taskId,
+      kind: "cron",
+      cron: opts.cron.trim(),
+      enabled: true,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this._upsertExecutionTrigger(trigger);
+    await this.schedule(
+      trigger.cron,
+      "fireExecutionTrigger",
+      { triggerId: trigger.id },
+      { idempotent: true }
+    );
+    return trigger;
+  }
+
+  async fireExecutionTrigger(
+    payload: { triggerId: string } | string
+  ): Promise<void> {
+    const triggerId = typeof payload === "string" ? payload : payload.triggerId;
+    const trigger = this._getExecutionTrigger(triggerId);
+    if (!trigger || !trigger.enabled) return;
+
+    const now = Date.now();
+    this._upsertExecutionTrigger({
+      ...trigger,
+      updatedAt: now,
+      lastRunAt: now
+    });
+    await this.runExecutionTask(trigger.taskId, "Triggered by scheduled cron.");
+  }
+
+  private _getExecutionTask(id: string): ExecutionTaskSummary | null {
+    const [row] = this.sql<{
+      id: string;
+      agent_id: string;
+      title: string;
+      instructions: string;
+      status: ExecutionTaskSummary["status"];
+      created_at: number;
+      updated_at: number;
+      last_run_at: number | null;
+      result: string | null;
+    }>`SELECT id, agent_id, title, instructions, status, created_at, updated_at, last_run_at, result FROM execution_tasks WHERE id = ${id}`;
+    if (!row) return null;
+    return {
+      id: row.id,
+      agentId: row.agent_id,
+      title: row.title,
+      instructions: row.instructions,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      lastRunAt: row.last_run_at ?? undefined,
+      result: row.result ?? undefined
+    };
+  }
+
+  private _getExecutionTrigger(id: string): ExecutionTriggerSummary | null {
+    const [row] = this.sql<{
+      id: string;
+      agent_id: string;
+      task_id: string;
+      kind: "cron";
+      cron: string;
+      enabled: number;
+      created_at: number;
+      updated_at: number;
+      last_run_at: number | null;
+    }>`SELECT id, agent_id, task_id, kind, cron, enabled, created_at, updated_at, last_run_at FROM execution_triggers WHERE id = ${id}`;
+    if (!row) return null;
+    return {
+      id: row.id,
+      agentId: row.agent_id,
+      taskId: row.task_id,
+      kind: row.kind,
+      cron: row.cron,
+      enabled: row.enabled === 1,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      lastRunAt: row.last_run_at ?? undefined
+    };
+  }
+
+  private _upsertExecutionTask(task: ExecutionTaskSummary): void {
+    this.sql`
+      INSERT INTO execution_tasks (
+        id,
+        agent_id,
+        title,
+        instructions,
+        status,
+        created_at,
+        updated_at,
+        last_run_at,
+        result
+      )
+      VALUES (
+        ${task.id},
+        ${task.agentId},
+        ${task.title},
+        ${task.instructions},
+        ${task.status},
+        ${task.createdAt},
+        ${task.updatedAt},
+        ${task.lastRunAt ?? null},
+        ${task.result ?? null}
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        instructions = excluded.instructions,
+        status = excluded.status,
+        updated_at = excluded.updated_at,
+        last_run_at = excluded.last_run_at,
+        result = excluded.result
+    `;
+  }
+
+  private _upsertExecutionTrigger(trigger: ExecutionTriggerSummary): void {
+    this.sql`
+      INSERT INTO execution_triggers (
+        id,
+        agent_id,
+        task_id,
+        kind,
+        cron,
+        enabled,
+        created_at,
+        updated_at,
+        last_run_at
+      )
+      VALUES (
+        ${trigger.id},
+        ${trigger.agentId},
+        ${trigger.taskId},
+        ${trigger.kind},
+        ${trigger.cron},
+        ${trigger.enabled ? 1 : 0},
+        ${trigger.createdAt},
+        ${trigger.updatedAt},
+        ${trigger.lastRunAt ?? null}
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        cron = excluded.cron,
+        enabled = excluded.enabled,
+        updated_at = excluded.updated_at,
+        last_run_at = excluded.last_run_at
+    `;
   }
 
   private _upsertExecutionAgentMeta(summary: ExecutionAgentSummary): void {
@@ -1129,7 +1480,7 @@ export class MyAssistant extends Think<Env> {
 Be concise. Prefer short, direct answers over lengthy explanations.
 The execute tool runs JavaScript you write in a sandboxed environment. Use it for multi-file operations, data transformations, or any task that would require many sequential tool calls.
 You can create extensions: new tools that persist across conversations. Offer to create one when a recurring task would benefit from it.
-For durable multi-step work, use execution agents: list the existing roster, create a focused worker when no suitable one exists, and delegate bounded tasks to it. Reuse the same execution agent for follow-ups on the same thread of work.
+For durable multi-step work, use execution agents: list the existing roster, create a focused worker when no suitable one exists, create durable tasks for work that may need status or retries, and create cron triggers for work that should wake up later. Reuse the same execution agent for follow-ups on the same thread of work.
 When you learn something about the user or their project, save it to memory.`
         }
       })
@@ -1274,6 +1625,78 @@ When you learn something about the user or their project, save it to memory.`
         execute: async ({ id, task, context }) => {
           const directory = await this.parentAgent(AssistantDirectory);
           return directory.delegateToExecutionAgent(id, task, context);
+        }
+      }),
+
+      create_execution_task: tool({
+        description:
+          "Create a durable task owned by a hidden execution agent. Use this for work that may need status, history, retries, or a future trigger.",
+        inputSchema: z.object({
+          agentId: z.string().describe("The execution agent that owns the task."),
+          title: z.string().describe("Short task title."),
+          instructions: z
+            .string()
+            .describe("Concrete instructions the execution agent should run now or later.")
+        }),
+        execute: async ({ agentId, title, instructions }) => {
+          const directory = await this.parentAgent(AssistantDirectory);
+          return directory.createExecutionTask({ agentId, title, instructions });
+        }
+      }),
+
+      list_execution_tasks: tool({
+        description:
+          "List durable execution tasks, optionally scoped to one execution agent.",
+        inputSchema: z.object({
+          agentId: z.string().optional().describe("Optional execution agent id.")
+        }),
+        execute: async ({ agentId }) => {
+          const directory = await this.parentAgent(AssistantDirectory);
+          return directory.listExecutionTasks(agentId);
+        }
+      }),
+
+      run_execution_task: tool({
+        description:
+          "Run an existing durable execution task through its owning hidden execution agent.",
+        inputSchema: z.object({
+          taskId: z.string().describe("The task id to run."),
+          context: z
+            .string()
+            .optional()
+            .describe("Relevant user-facing conversation context.")
+        }),
+        execute: async ({ taskId, context }) => {
+          const directory = await this.parentAgent(AssistantDirectory);
+          return directory.runExecutionTask(taskId, context);
+        }
+      }),
+
+      create_execution_trigger: tool({
+        description:
+          "Create a cron trigger that wakes an execution agent by running one of its durable tasks on schedule.",
+        inputSchema: z.object({
+          agentId: z.string().describe("The execution agent that owns the task."),
+          taskId: z.string().describe("The durable task to run on schedule."),
+          cron: z
+            .string()
+            .describe("Cron expression, for example '0 14 * * 1' for Mondays at 14:00 UTC.")
+        }),
+        execute: async ({ agentId, taskId, cron }) => {
+          const directory = await this.parentAgent(AssistantDirectory);
+          return directory.createExecutionTrigger({ agentId, taskId, cron });
+        }
+      }),
+
+      list_execution_triggers: tool({
+        description:
+          "List cron triggers that can wake hidden execution agents, optionally scoped to one execution agent.",
+        inputSchema: z.object({
+          agentId: z.string().optional().describe("Optional execution agent id.")
+        }),
+        execute: async ({ agentId }) => {
+          const directory = await this.parentAgent(AssistantDirectory);
+          return directory.listExecutionTriggers(agentId);
         }
       })
     };

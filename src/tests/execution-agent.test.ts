@@ -70,3 +70,71 @@ describe("AssistantDirectory — hidden execution agents", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("AssistantDirectory — execution tasks and triggers", () => {
+  async function directoryWithWorker() {
+    const directory = await getAgentByName(
+      env.AssistantDirectory,
+      uniqueDirectoryName()
+    );
+    const worker = await directory.createExecutionAgent({
+      role: "reminder",
+      title: "Weekly review",
+      instructions: "Own recurring weekly review work."
+    });
+    return { directory, worker };
+  }
+
+  it("creates and lists durable tasks for an execution agent", async () => {
+    const { directory, worker } = await directoryWithWorker();
+
+    const task = await directory.createExecutionTask({
+      agentId: worker.id,
+      title: "Prepare review",
+      instructions: "Summarize the workspace and identify blockers."
+    });
+
+    expect(task).toMatchObject({
+      agentId: worker.id,
+      title: "Prepare review",
+      status: "queued"
+    });
+
+    const allTasks = await directory.listExecutionTasks();
+    expect(allTasks.map((entry) => entry.id)).toContain(task.id);
+
+    const scopedTasks = await directory.listExecutionTasks(worker.id);
+    expect(scopedTasks).toHaveLength(1);
+    expect(scopedTasks[0]).toMatchObject({
+      id: task.id,
+      instructions: "Summarize the workspace and identify blockers."
+    });
+  });
+
+  it("creates cron triggers that point at durable tasks", async () => {
+    const { directory, worker } = await directoryWithWorker();
+    const task = await directory.createExecutionTask({
+      agentId: worker.id,
+      title: "Prepare review",
+      instructions: "Summarize the workspace and identify blockers."
+    });
+
+    const trigger = await directory.createExecutionTrigger({
+      agentId: worker.id,
+      taskId: task.id,
+      cron: "0 14 * * 1"
+    });
+
+    expect(trigger).toMatchObject({
+      agentId: worker.id,
+      taskId: task.id,
+      kind: "cron",
+      cron: "0 14 * * 1",
+      enabled: true
+    });
+
+    const triggers = await directory.listExecutionTriggers(worker.id);
+    expect(triggers).toHaveLength(1);
+    expect(triggers[0].id).toBe(trigger.id);
+  });
+});
