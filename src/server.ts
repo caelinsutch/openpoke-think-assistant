@@ -592,10 +592,11 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
   // ── Hidden execution agents (OpenPoke-style worker roster) ───────
   //
   // The visible `MyAssistant` calls these over parent DO RPC from its
-  // orchestration tools. The browser cannot call them directly because
-  // they are not `@callable()`, and `onBeforeSubAgent` refuses direct
-  // HTTP/WebSocket routing to `ExecutionAgent` facets.
+  // orchestration tools. The browser can also call the list/create/run
+  // surface for the orchestration panel. Direct HTTP/WebSocket routing
+  // to `ExecutionAgent` facets remains blocked by `onBeforeSubAgent`.
 
+  @callable()
   async listExecutionAgents(): Promise<ExecutionAgentSummary[]> {
     const registry = this.listSubAgents(ExecutionAgent);
     const rows = this.sql<{
@@ -627,6 +628,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  @callable()
   async createExecutionAgent(opts: {
     role: ExecutionAgentSummary["role"];
     title: string;
@@ -665,6 +667,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     return summary;
   }
 
+  @callable()
   async listExecutionTasks(agentId?: string): Promise<ExecutionTaskSummary[]> {
     const rows = agentId
       ? this.sql<{
@@ -705,6 +708,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  @callable()
   async createExecutionTask(opts: {
     agentId: string;
     title: string;
@@ -728,6 +732,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     return task;
   }
 
+  @callable()
   async runExecutionTask(taskId: string, context?: string): Promise<ExecutionTaskSummary> {
     const task = this._getExecutionTask(taskId);
     if (!task) throw new Error(`Execution task "${taskId}" not found`);
@@ -758,6 +763,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     return next;
   }
 
+  @callable()
   async listExecutionTriggers(agentId?: string): Promise<ExecutionTriggerSummary[]> {
     const rows = agentId
       ? this.sql<{
@@ -798,6 +804,7 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  @callable()
   async createExecutionTrigger(opts: {
     agentId: string;
     taskId: string;

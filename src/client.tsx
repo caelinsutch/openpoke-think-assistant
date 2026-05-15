@@ -68,6 +68,7 @@ import {
 import { fetchCurrentUser, signOut, startGitHubLogin, type AuthUser } from "./auth-client";
 import { useChats } from "./use-chats";
 import type { ChatSummary } from "./server";
+import { OrchestrationPanel } from "./orchestration-panel";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
@@ -1315,6 +1316,7 @@ function ChatSidebar({
   onCreate,
   onRename,
   onDelete,
+  onOpenOrchestration,
   user,
   onSignOut,
 }: {
@@ -1324,6 +1326,7 @@ function ChatSidebar({
   onCreate: () => void;
   onRename: (chat: ChatSummary) => void;
   onDelete: (chat: ChatSummary) => void;
+  onOpenOrchestration: () => void;
   user: AuthUser;
   onSignOut: () => Promise<void>;
 }) {
@@ -1358,6 +1361,18 @@ function ChatSidebar({
           className="w-full"
         >
           New chat
+        </Button>
+      </div>
+
+      <div className="px-3 pb-2 border-b border-kumo-line">
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={<GearIcon size={14} />}
+          onClick={onOpenOrchestration}
+          className="w-full"
+        >
+          Orchestration
         </Button>
       </div>
 
@@ -1460,6 +1475,7 @@ function MultiChatApp({ user, onSignOut }: { user: AuthUser; onSignOut: () => vo
     removeMcpServer,
   } = useChats();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [showOrchestrationPanel, setShowOrchestrationPanel] = useState(false);
 
   // Auto-select the most-recently-active chat when the sidebar loads or
   // when the currently-active chat is deleted from under us. The
@@ -1533,6 +1549,7 @@ function MultiChatApp({ user, onSignOut }: { user: AuthUser; onSignOut: () => vo
         onCreate={handleCreate}
         onRename={handleRename}
         onDelete={handleDelete}
+        onOpenOrchestration={() => setShowOrchestrationPanel(true)}
         user={user}
         onSignOut={handleSignOut}
       />
@@ -1561,6 +1578,11 @@ function MultiChatApp({ user, onSignOut }: { user: AuthUser; onSignOut: () => vo
           />
         )}
       </div>
+      <OrchestrationPanel
+        directory={directory}
+        open={showOrchestrationPanel}
+        onClose={() => setShowOrchestrationPanel(false)}
+      />
     </div>
   );
 }
