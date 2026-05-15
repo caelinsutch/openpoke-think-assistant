@@ -99,7 +99,7 @@ import { createExecuteTool } from "@cloudflare/think/tools/execute";
 import { createWorkspaceTools } from "@cloudflare/think/tools/workspace";
 import { createExtensionTools } from "@cloudflare/think/tools/extensions";
 import { createCompactFunction } from "agents/experimental/memory/utils";
-import { AgentSearchProvider } from "agents/experimental/memory/session";
+import type { SearchProvider, WritableContextProvider } from "agents/experimental/memory/session";
 import type {
   TurnContext,
   TurnConfig,
@@ -173,6 +173,11 @@ type ExecutionAgentState = ExecutionAgentSummary & {
   events: ExecutionAgentEvent[];
 };
 
+export interface MemorySearchResult {
+  key: string;
+  content: string;
+}
+
 /**
  * Tool descriptor the directory returns to children over RPC. Mirrors
  * what `MCPClientManager.listTools()` returns — an MCP SDK `Tool` plus
@@ -238,6 +243,7 @@ export class ExecutionAgent extends Agent<Env, ExecutionAgentState> {
     });
 
     try {
+      const sharedMemory = await this._loadSharedMemory();
       const history = this.state.events
         .slice(-12)
         .map(
@@ -257,7 +263,10 @@ Do not add personality. Return a concise status report with concrete outputs,
 blockers, and suggested next action.
 
 Persistent instructions:
-${this.state.instructions || "Handle the delegated task carefully."}`,
+${this.state.instructions || "Handle the delegated task carefully."}
+
+Shared user/project memory:
+${sharedMemory || "(empty)"}`,
         prompt: `Current task:
 ${task}
 
@@ -302,6 +311,16 @@ ${history || "(empty)"}`,
         events: [...(this.state.events ?? []), errorEvent],
       });
       return this.snapshot();
+    }
+  }
+
+  private async _loadSharedMemory(): Promise<string> {
+    try {
+      const directory = await this.parentAgent(AssistantDirectory);
+      return await directory.getSharedMemoryForPrompt();
+    } catch (err) {
+      console.warn("[ExecutionAgent] Failed to load shared memory:", err);
+      return "";
     }
   }
 }
@@ -407,6 +426,25 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       updated_at INTEGER NOT NULL,
       last_run_at INTEGER
     )`;
+    void this.sql`CREATE TABLE IF NOT EXISTS shared_context_blocks (
+      label TEXT PRIMARY KEY,
+      content TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`;
+    void this.sql`CREATE TABLE IF NOT EXISTS shared_search_entries (
+      key TEXT PRIMARY KEY,
+      content TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`;
+    void this.sql`
+      CREATE VIRTUAL TABLE IF NOT EXISTS shared_search_fts
+      USING fts5(
+        key UNINDEXED,
+        content,
+        tokenize='porter unicode61'
+      )
+    `;
     this._refreshState();
 
     // The directory owns cross-chat scheduled work. Facets can't
@@ -1176,6 +1214,94 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       serverId,
     })) as CallToolResult;
   }
+
+  // ── Shared memory surface ────────────────────────────────────────
+  //
+  // Think's default context providers are scoped to the child chat DO.
+  // These methods keep user/project memory on the parent directory
+  // instead, so every interaction chat and hidden execution agent for
+  // the same authenticated user sees the same durable context.
+
+  async getSharedContextBlock(label: string): Promise<string | null> {
+    const [row] = this.sql<{ content: string }>`
+      SELECT content FROM shared_context_blocks WHERE label = ${label}
+    `;
+    return row?.content ?? null;
+  }
+
+  async setSharedContextBlock(label: string, content: string): Promise<void> {
+    void this.sql`
+      INSERT INTO shared_context_blocks (label, content, updated_at)
+      VALUES (${label}, ${content}, ${Date.now()})
+      ON CONFLICT(label) DO UPDATE SET
+        content = excluded.content,
+        updated_at = excluded.updated_at
+    `;
+  }
+
+  async getSharedSearchSummary(): Promise<string | null> {
+    const rows = this.sql<{ key: string }>`
+      SELECT key FROM shared_search_entries
+      ORDER BY updated_at DESC
+      LIMIT 20
+    `;
+    if (rows.length === 0) return null;
+    return `${rows.length} entries indexed. Recent:\n${rows.map((row) => `- ${row.key}`).join("\n")}`;
+  }
+
+  async setSharedSearchEntry(key: string, content: string): Promise<void> {
+    this._deleteSharedSearchFTS(key);
+    const now = Date.now();
+    void this.sql`
+      INSERT INTO shared_search_entries (key, content, created_at, updated_at)
+      VALUES (${key}, ${content}, ${now}, ${now})
+      ON CONFLICT(key) DO UPDATE SET
+        content = excluded.content,
+        updated_at = excluded.updated_at
+    `;
+    void this.sql`
+      INSERT INTO shared_search_fts (key, content)
+      VALUES (${key}, ${content})
+    `;
+  }
+
+  async searchSharedMemory(query: string, limit = 10): Promise<MemorySearchResult[]> {
+    const sanitized = query
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => `"${word.replace(/"/g, '""')}"`)
+      .join(" ");
+    if (!sanitized) return [];
+
+    try {
+      return this.sql<MemorySearchResult>`
+        SELECT key, content
+        FROM shared_search_fts
+        WHERE shared_search_fts MATCH ${sanitized}
+        ORDER BY rank
+        LIMIT ${limit}
+      `;
+    } catch {
+      return [];
+    }
+  }
+
+  async getSharedMemoryForPrompt(): Promise<string> {
+    const memory = await this.getSharedContextBlock("memory");
+    const knowledge = await this.getSharedSearchSummary();
+    return [memory ? `MEMORY\n${memory}` : "", knowledge ? `KNOWLEDGE\n${knowledge}` : ""]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  private _deleteSharedSearchFTS(key: string): void {
+    const rows = this.sql<{ rowid: number }>`
+      SELECT rowid FROM shared_search_fts WHERE key = ${key}
+    `;
+    for (const row of rows) {
+      void this.sql`DELETE FROM shared_search_fts WHERE rowid = ${row.rowid}`;
+    }
+  }
 }
 
 // ── SharedWorkspace — proxy used by children ─────────────────────────
@@ -1377,6 +1503,67 @@ class SharedMCPClient {
   }
 }
 
+// ── Shared memory providers — child-side Session API adapters ───────
+
+class SharedContextProvider implements WritableContextProvider {
+  #stubPromise?: Promise<DurableObjectStub<AssistantDirectory>>;
+  #label: string;
+
+  constructor(
+    private child: Pick<MyAssistant, "parentAgent">,
+    label: string,
+  ) {
+    this.#label = label;
+  }
+
+  init(label: string): void {
+    this.#label = label;
+  }
+
+  private parent(): Promise<DurableObjectStub<AssistantDirectory>> {
+    this.#stubPromise ??= this.child.parentAgent(AssistantDirectory);
+    return this.#stubPromise;
+  }
+
+  async get(): Promise<string | null> {
+    return (await this.parent()).getSharedContextBlock(this.#label);
+  }
+
+  async set(content: string): Promise<void> {
+    return (await this.parent()).setSharedContextBlock(this.#label, content);
+  }
+}
+
+class SharedSearchProvider implements SearchProvider {
+  #stubPromise?: Promise<DurableObjectStub<AssistantDirectory>>;
+
+  constructor(private child: Pick<MyAssistant, "parentAgent">) {}
+
+  init(_label: string): void {
+    // The parent owns a single user/project knowledge index. The
+    // Session label is intentionally ignored so all chats share it.
+  }
+
+  private parent(): Promise<DurableObjectStub<AssistantDirectory>> {
+    this.#stubPromise ??= this.child.parentAgent(AssistantDirectory);
+    return this.#stubPromise;
+  }
+
+  async get(): Promise<string | null> {
+    return (await this.parent()).getSharedSearchSummary();
+  }
+
+  async search(query: string): Promise<string | null> {
+    const rows = await (await this.parent()).searchSharedMemory(query);
+    if (rows.length === 0) return null;
+    return rows.map((row) => `[${row.key}]\n${row.content}`).join("\n\n");
+  }
+
+  async set(key: string, content: string): Promise<void> {
+    return (await this.parent()).setSharedSearchEntry(key, content);
+  }
+}
+
 // ── MyAssistant — one Think DO per chat (a facet of the directory) ────
 
 export class MyAssistant extends Think<Env> {
@@ -1457,8 +1644,9 @@ When you learn something about the user or their project, save it to memory.`,
       })
       .withContext("memory", {
         description:
-          "Key facts about the user, their preferences, project context, and decisions made during conversation. Update when you learn something that would be useful in future turns.",
+          "Shared key facts about the user, their preferences, project context, and decisions made during conversation. This memory is shared across all chats and execution agents for the same user. Update when you learn something that would be useful in future turns.",
         maxTokens: 2000,
+        provider: new SharedContextProvider(this, "memory"),
       })
       .onCompaction(
         createCompactFunction({
@@ -1469,8 +1657,8 @@ When you learn something about the user or their project, save it to memory.`,
       .compactAfter(50000)
       .withContext("knowledge", {
         description:
-          "Searchable knowledge base. Index useful information with set_context and retrieve it later with search_context.",
-        provider: new AgentSearchProvider(this),
+          "Shared searchable knowledge base across all chats and execution agents for the same user. Index useful information with set_context and retrieve it later with search_context.",
+        provider: new SharedSearchProvider(this),
       })
       .withCachedPrompt();
   }
@@ -1660,6 +1848,11 @@ When you learn something about the user or their project, save it to memory.`,
   }
 
   async beforeTurn(ctx: TurnContext): Promise<TurnConfig | void> {
+    // Shared memory can be written by another chat since this facet's
+    // prompt was cached. Refresh once per turn so cross-chat memory is
+    // visible before inference starts.
+    await this.session.refreshSystemPrompt();
+
     // Splice the directory's shared MCP tools into this turn. Think
     // merges `config.tools` additively on top of the base tool set, so
     // whatever tools we return here join `workspace` / `extensions` /
