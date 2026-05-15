@@ -67,7 +67,7 @@
  *   - Workspace tools (read, write, edit, find, grep, delete) — backed by the shared directory workspace, not per-chat
  *   - Sandboxed code execution via @cloudflare/codemode
  *   - Self-authored extensions via ExtensionManager (per-chat — lives in the child DO's own storage)
- *   - Persistent memory via context blocks (per-chat)
+ *   - Shared MemoryProfile API with SQLite full-text search + Cloudflare Vectorize semantic recall
  *   - Non-destructive compaction for long conversations
  *   - Full-text search across conversation history (FTS5)
  *   - Dynamic typed configuration (model tier, persona) — per-chat
@@ -99,7 +99,6 @@ import { createExecuteTool } from "@cloudflare/think/tools/execute";
 import { createWorkspaceTools } from "@cloudflare/think/tools/workspace";
 import { createExtensionTools } from "@cloudflare/think/tools/extensions";
 import { createCompactFunction } from "agents/experimental/memory/utils";
-import type { SearchProvider, WritableContextProvider } from "agents/experimental/memory/session";
 import type {
   TurnContext,
   TurnConfig,
@@ -112,6 +111,17 @@ import { tool, generateText } from "ai";
 import type { LanguageModel, ToolSet } from "ai";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import {
+  MemoryProfileImpl,
+  SqliteMemoryStore,
+  VectorizeMemoryStore,
+  WorkersAIEmbeddingModel,
+  type MemoryMessage,
+  type MemoryProfile,
+  type MemoryRecallResult,
+  type MemoryRecord,
+  type MemoryRememberResult,
+} from "./memory";
 
 // ── Shared types (sidebar state, RPC contracts) ───────────────────────
 
@@ -172,11 +182,6 @@ type ExecutionAgentEvent = {
 type ExecutionAgentState = ExecutionAgentSummary & {
   events: ExecutionAgentEvent[];
 };
-
-export interface MemorySearchResult {
-  key: string;
-  content: string;
-}
 
 /**
  * Tool descriptor the directory returns to children over RPC. Mirrors
@@ -371,6 +376,24 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
     // r2: this.env.R2 — uncomment to spill large files to R2.
   });
 
+  #memoryProfile?: MemoryProfile;
+
+  private get memoryProfile(): MemoryProfile {
+    const sqlite = new SqliteMemoryStore((strings, ...values) =>
+      this.sql(strings, ...(values as Array<string | number | boolean | null>)),
+    );
+    const vectorStore = this.env.MEMORY_VECTORIZE
+      ? new VectorizeMemoryStore(
+          this.env.MEMORY_VECTORIZE,
+          new WorkersAIEmbeddingModel(this.env.AI),
+          sqlite,
+          this.name,
+        )
+      : undefined;
+    this.#memoryProfile ??= new MemoryProfileImpl(sqlite, vectorStore);
+    return this.#memoryProfile;
+  }
+
   /**
    * Fan-out: push workspace change events to every client connected to
    * this directory. Each chat pane's `useAgent` connection to the
@@ -426,25 +449,6 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
       updated_at INTEGER NOT NULL,
       last_run_at INTEGER
     )`;
-    void this.sql`CREATE TABLE IF NOT EXISTS shared_context_blocks (
-      label TEXT PRIMARY KEY,
-      content TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`;
-    void this.sql`CREATE TABLE IF NOT EXISTS shared_search_entries (
-      key TEXT PRIMARY KEY,
-      content TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )`;
-    void this.sql`
-      CREATE VIRTUAL TABLE IF NOT EXISTS shared_search_fts
-      USING fts5(
-        key UNINDEXED,
-        content,
-        tokenize='porter unicode61'
-      )
-    `;
     this._refreshState();
 
     // The directory owns cross-chat scheduled work. Facets can't
@@ -1217,90 +1221,36 @@ export class AssistantDirectory extends Agent<Env, DirectoryState> {
 
   // ── Shared memory surface ────────────────────────────────────────
   //
-  // Think's default context providers are scoped to the child chat DO.
-  // These methods keep user/project memory on the parent directory
-  // instead, so every interaction chat and hidden execution agent for
-  // the same authenticated user sees the same durable context.
+  // This mirrors the managed Agent Memory profile API from Cloudflare's
+  // beta announcement. Today it is backed by a local SQLite/FTS store;
+  // once a managed Agent Memory binding is available, only `memoryProfile` should
+  // need to change.
 
-  async getSharedContextBlock(label: string): Promise<string | null> {
-    const [row] = this.sql<{ content: string }>`
-      SELECT content FROM shared_context_blocks WHERE label = ${label}
-    `;
-    return row?.content ?? null;
+  async rememberMemory(input: {
+    content: string;
+    sessionId?: string;
+  }): Promise<MemoryRememberResult> {
+    return this.memoryProfile.remember(input);
   }
 
-  async setSharedContextBlock(label: string, content: string): Promise<void> {
-    void this.sql`
-      INSERT INTO shared_context_blocks (label, content, updated_at)
-      VALUES (${label}, ${content}, ${Date.now()})
-      ON CONFLICT(label) DO UPDATE SET
-        content = excluded.content,
-        updated_at = excluded.updated_at
-    `;
+  async recallMemory(query: string, opts?: { limit?: number }): Promise<MemoryRecallResult> {
+    return this.memoryProfile.recall(query, opts);
   }
 
-  async getSharedSearchSummary(): Promise<string | null> {
-    const rows = this.sql<{ key: string }>`
-      SELECT key FROM shared_search_entries
-      ORDER BY updated_at DESC
-      LIMIT 20
-    `;
-    if (rows.length === 0) return null;
-    return `${rows.length} entries indexed. Recent:\n${rows.map((row) => `- ${row.key}`).join("\n")}`;
+  async ingestMemory(messages: MemoryMessage[], opts?: { sessionId?: string }): Promise<void> {
+    return this.memoryProfile.ingest(messages, opts);
   }
 
-  async setSharedSearchEntry(key: string, content: string): Promise<void> {
-    this._deleteSharedSearchFTS(key);
-    const now = Date.now();
-    void this.sql`
-      INSERT INTO shared_search_entries (key, content, created_at, updated_at)
-      VALUES (${key}, ${content}, ${now}, ${now})
-      ON CONFLICT(key) DO UPDATE SET
-        content = excluded.content,
-        updated_at = excluded.updated_at
-    `;
-    void this.sql`
-      INSERT INTO shared_search_fts (key, content)
-      VALUES (${key}, ${content})
-    `;
+  async listMemory(opts?: { limit?: number }): Promise<MemoryRecord[]> {
+    return this.memoryProfile.list(opts);
   }
 
-  async searchSharedMemory(query: string, limit = 10): Promise<MemorySearchResult[]> {
-    const sanitized = query
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((word) => `"${word.replace(/"/g, '""')}"`)
-      .join(" ");
-    if (!sanitized) return [];
-
-    try {
-      return this.sql<MemorySearchResult>`
-        SELECT key, content
-        FROM shared_search_fts
-        WHERE shared_search_fts MATCH ${sanitized}
-        ORDER BY rank
-        LIMIT ${limit}
-      `;
-    } catch {
-      return [];
-    }
+  async forgetMemory(id: string): Promise<void> {
+    return this.memoryProfile.forget(id);
   }
 
   async getSharedMemoryForPrompt(): Promise<string> {
-    const memory = await this.getSharedContextBlock("memory");
-    const knowledge = await this.getSharedSearchSummary();
-    return [memory ? `MEMORY\n${memory}` : "", knowledge ? `KNOWLEDGE\n${knowledge}` : ""]
-      .filter(Boolean)
-      .join("\n\n");
-  }
-
-  private _deleteSharedSearchFTS(key: string): void {
-    const rows = this.sql<{ rowid: number }>`
-      SELECT rowid FROM shared_search_fts WHERE key = ${key}
-    `;
-    for (const row of rows) {
-      void this.sql`DELETE FROM shared_search_fts WHERE rowid = ${row.rowid}`;
-    }
+    return this.memoryProfile.summarizeForPrompt();
   }
 }
 
@@ -1503,64 +1453,20 @@ class SharedMCPClient {
   }
 }
 
-// ── Shared memory providers — child-side Session API adapters ───────
+// ── Shared memory provider — child-side Session API adapter ─────────
 
-class SharedContextProvider implements WritableContextProvider {
-  #stubPromise?: Promise<DurableObjectStub<AssistantDirectory>>;
-  #label: string;
-
-  constructor(
-    private child: Pick<MyAssistant, "parentAgent">,
-    label: string,
-  ) {
-    this.#label = label;
-  }
-
-  init(label: string): void {
-    this.#label = label;
-  }
-
-  private parent(): Promise<DurableObjectStub<AssistantDirectory>> {
-    this.#stubPromise ??= this.child.parentAgent(AssistantDirectory);
-    return this.#stubPromise;
-  }
-
-  async get(): Promise<string | null> {
-    return (await this.parent()).getSharedContextBlock(this.#label);
-  }
-
-  async set(content: string): Promise<void> {
-    return (await this.parent()).setSharedContextBlock(this.#label, content);
-  }
-}
-
-class SharedSearchProvider implements SearchProvider {
+class SharedMemorySummaryProvider {
   #stubPromise?: Promise<DurableObjectStub<AssistantDirectory>>;
 
   constructor(private child: Pick<MyAssistant, "parentAgent">) {}
 
-  init(_label: string): void {
-    // The parent owns a single user/project knowledge index. The
-    // Session label is intentionally ignored so all chats share it.
-  }
-
   private parent(): Promise<DurableObjectStub<AssistantDirectory>> {
     this.#stubPromise ??= this.child.parentAgent(AssistantDirectory);
     return this.#stubPromise;
   }
 
   async get(): Promise<string | null> {
-    return (await this.parent()).getSharedSearchSummary();
-  }
-
-  async search(query: string): Promise<string | null> {
-    const rows = await (await this.parent()).searchSharedMemory(query);
-    if (rows.length === 0) return null;
-    return rows.map((row) => `[${row.key}]\n${row.content}`).join("\n\n");
-  }
-
-  async set(key: string, content: string): Promise<void> {
-    return (await this.parent()).setSharedSearchEntry(key, content);
+    return (await this.parent()).getSharedMemoryForPrompt();
   }
 }
 
@@ -1644,9 +1550,9 @@ When you learn something about the user or their project, save it to memory.`,
       })
       .withContext("memory", {
         description:
-          "Shared key facts about the user, their preferences, project context, and decisions made during conversation. This memory is shared across all chats and execution agents for the same user. Update when you learn something that would be useful in future turns.",
+          "Read-only summary of shared user/project memory. Use remember_memory to store important facts and recall_memory to retrieve details instead of relying on this summary alone.",
         maxTokens: 2000,
-        provider: new SharedContextProvider(this, "memory"),
+        provider: new SharedMemorySummaryProvider(this),
       })
       .onCompaction(
         createCompactFunction({
@@ -1655,11 +1561,6 @@ When you learn something about the user or their project, save it to memory.`,
         }),
       )
       .compactAfter(50000)
-      .withContext("knowledge", {
-        description:
-          "Shared searchable knowledge base across all chats and execution agents for the same user. Index useful information with set_context and retrieve it later with search_context.",
-        provider: new SharedSearchProvider(this),
-      })
       .withCachedPrompt();
   }
 
@@ -1730,6 +1631,57 @@ When you learn something about the user or their project, save it to memory.`,
             expression: `${a} ${operator} ${b}`,
             result: ops[operator](a, b),
           };
+        },
+      }),
+
+      remember_memory: tool({
+        description:
+          "Store an important durable user or project memory. Use this for stable preferences, decisions, facts, and reusable context that should survive across chats and execution agents.",
+        inputSchema: z.object({
+          content: z.string().describe("The memory to store as a concise standalone statement."),
+        }),
+        execute: async ({ content }) => {
+          const directory = await this.parentAgent(AssistantDirectory);
+          return directory.rememberMemory({ content, sessionId: this.name });
+        },
+      }),
+
+      recall_memory: tool({
+        description:
+          "Recall relevant durable user or project memories. Use this before relying on the summary in the MEMORY context block.",
+        inputSchema: z.object({
+          query: z.string().describe("Question or search query for memory recall."),
+          limit: z.number().int().min(1).max(20).optional().describe("Maximum memories to return."),
+        }),
+        execute: async ({ query, limit }) => {
+          const directory = await this.parentAgent(AssistantDirectory);
+          return directory.recallMemory(query, { limit });
+        },
+      }),
+
+      list_memory: tool({
+        description: "List the most recent durable memories for this user/workspace.",
+        inputSchema: z.object({
+          limit: z.number().int().min(1).max(50).optional().describe("Maximum memories to return."),
+        }),
+        execute: async ({ limit }) => {
+          const directory = await this.parentAgent(AssistantDirectory);
+          return directory.listMemory({ limit });
+        },
+      }),
+
+      forget_memory: tool({
+        description:
+          "Delete a durable memory by id when it is wrong, obsolete, or the user asks to forget it.",
+        inputSchema: z.object({
+          id: z
+            .string()
+            .describe("The memory id returned by remember_memory, recall_memory, or list_memory."),
+        }),
+        execute: async ({ id }) => {
+          const directory = await this.parentAgent(AssistantDirectory);
+          await directory.forgetMemory(id);
+          return { ok: true };
         },
       }),
 
@@ -1912,7 +1864,7 @@ When you learn something about the user or their project, save it to memory.`,
 
   // No `onStart` override: MCP is shared from the parent directory
   // (see `AssistantDirectory.onStart`), schedules live on the parent,
-  // and everything per-chat (workspace, extensions, session config)
+  // and everything else per-chat (workspace proxy, extensions, session config)
   // is wired up by Think's own base `onStart` via class fields.
 
   /**

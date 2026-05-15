@@ -9,8 +9,8 @@ the sub-agent routing primitive from `agents`. The visible chat acts as the inte
 - **Durable tasks and cron triggers** — `AssistantDirectory` stores task and trigger records, schedules cron triggers from the parent, and routes triggered runs back to the owning execution agent.
 - **Orchestration panel** — the sidebar has an **Orchestration** drawer for inspecting execution agents, creating durable tasks, attaching cron triggers, and manually running tasks without prompting the assistant to call tools.
 - **Multi-session via sub-agent routing** — each user gets an `AssistantDirectory`
-  parent DO that owns the sidebar. Each chat is its own `MyAssistant` facet
-  (full Think DO — own extensions, memory, messages). Addressed transparently
+  parent DO that owns the sidebar and shared memory. Each chat is its own `MyAssistant` facet
+  (full Think DO — own extensions and messages). Addressed transparently
   via `useAgent({ sub: [{ agent: "MyAssistant", name: chatId }] })`
 - **Shared workspace across chats** — `AssistantDirectory` owns one `Workspace`
   backed by its SQLite; every `MyAssistant` child gets a `SharedWorkspace`
@@ -33,9 +33,9 @@ the sub-agent routing primitive from `agents`. The visible chat acts as the inte
 - **Built-in workspace** — file tools (read, write, edit, find, grep, delete) auto-wired on every turn
 - **Sandboxed code execution** — `createExecuteTool` lets the LLM write and run JavaScript in a Dynamic Worker via `@cloudflare/codemode`
 - **Self-authored extensions** — `extensionLoader` + `createExtensionTools` let the agent create new tools at runtime
-- **Persistent memory** — context blocks (`soul`, `memory`) the model can read and write across sessions
+- **Shared persistent memory** — `AssistantDirectory` exposes a `MemoryProfile` API modeled after Cloudflare Agent Memory (`remember`, `recall`, `ingest`, `list`, `forget`). `MyAssistant` exposes explicit memory tools, execution agents inject the same memory summary before running tasks, and the Think context block is only a read-only prompt summary.
 - **Non-destructive compaction** — older messages summarized when context overflows, originals preserved
-- **Searchable knowledge base** — FTS5-backed `AgentSearchProvider` with `search_context` and `set_context` tools
+- **Hybrid memory retrieval** — durable records live in the directory DO's SQLite store with FTS5 keyword search, and semantic recall is backed by Cloudflare Vectorize plus Workers AI embeddings.
 - **Dynamic configuration** — typed `AgentConfig` with model tier and persona, persisted in SQLite
 - **Server-side tools** — `getWeather`, `calculate` execute on the server
 - **Client-side tools** — `getUserTimezone` runs in the browser via `onToolCall`
@@ -86,6 +86,20 @@ You can still test the same flow through chat by asking the assistant to use its
 ```sh
 bun run test
 bun run test:e2e
+```
+
+### 4. Set up Vectorize memory
+
+The fallback memory backend uses Cloudflare Vectorize for semantic recall and Workers AI for embeddings. Create the index before deploying or running the remote AI E2E suite:
+
+```sh
+npx wrangler vectorize create think-assistant-memory --dimensions=768 --metric=cosine
+```
+
+The binding is configured as `MEMORY_VECTORIZE` in `wrangler.jsonc` with `remote: true`, because Vectorize is a remote-only binding in local development. The local unit tests use a fake Vectorize binding object to verify the memory API without touching Cloudflare. The remote E2E verifies the real Vectorize path:
+
+```sh
+RUN_AI_E2E=1 bunx vitest --run --config src/tests/vitest.ai.config.ts -t "Vectorize memory"
 ```
 
 ## Architecture
@@ -191,6 +205,32 @@ That one type annotation unlocks two things at once:
 The parent DO and the child facet live on the same machine, so each
 RPC hop is in-process and cheap (no network, no serialization across
 external links).
+
+### Shared memory
+
+Memory is shared at the `AssistantDirectory` level, not owned by individual chat facets. The public app-facing surface is `MemoryProfile` in `src/memory.ts`:
+
+```ts
+type MemoryProfile = {
+  remember(input: { content: string; sessionId?: string }): Promise<{ id: string }>;
+  recall(query: string, opts?: { limit?: number }): Promise<MemoryRecallResult>;
+  ingest(messages: MemoryMessage[], opts?: { sessionId?: string }): Promise<void>;
+  list(opts?: { limit?: number }): Promise<MemoryRecord[]>;
+  forget(id: string): Promise<void>;
+  summarizeForPrompt(): Promise<string>;
+};
+```
+
+That shape intentionally resembles Cloudflare Agent Memory's profile API, so swapping the local fallback for a managed `env.MEMORY.getProfile(...)` implementation should be isolated to the provider layer.
+
+The current fallback uses two retrieval paths:
+
+- `SqliteMemoryStore` writes durable records into the directory DO and indexes them with FTS5 for keyword recall.
+- `VectorizeMemoryStore` embeds records with Workers AI (`@cf/baai/bge-base-en-v1.5`) and writes vectors to `MEMORY_VECTORIZE` for semantic recall, using the directory name as the Vectorize namespace so each user/workspace recalls only its own vectors.
+
+`recall()` fuses text and vector results by memory id. `MyAssistant` exposes explicit tools (`remember_memory`, `recall_memory`, `list_memory`, `forget_memory`) instead of letting Think's context block own writes. The `memory` context block remains useful, but only as a compact read-only prompt summary that tells the model memory exists and when to call retrieval.
+
+Execution agents call `getSharedMemoryForPrompt()` before every delegated task, so the hidden worker sees the same user/project memory as the visible interaction agent without relying on shared model context.
 
 **Trade-offs worth knowing:**
 
@@ -350,10 +390,10 @@ export class MyAssistant extends Think<Env> {
     /* model tier from config */
   }
   configureSession(session) {
-    /* persona, memory, compaction, knowledge */
+    /* persona, read-only memory summary, compaction */
   }
   getTools() {
-    /* execute, extensions, getWeather, calculate, ... */
+    /* execute, extensions, memory, orchestration, getWeather, calculate, ... */
   }
 
   // Each turn updates the parent's sidebar preview via the

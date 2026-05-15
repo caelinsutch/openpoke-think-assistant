@@ -37,6 +37,8 @@ export type Env = {
   ExecutionAgent: DurableObjectNamespace<ExecutionAgent>;
   MyAssistant: DurableObjectNamespace<MyAssistant>;
   LOADER: WorkerLoader;
+  AI?: Ai;
+  MEMORY_VECTORIZE?: Vectorize;
 };
 
 export default {

@@ -8,6 +8,7 @@ declare namespace Cloudflare {
   interface Env {
     LOADER: WorkerLoader;
     AI: Ai;
+    MEMORY_VECTORIZE: Vectorize;
     GITHUB_CLIENT_ID: string;
     GITHUB_CLIENT_SECRET: string;
     AssistantDirectory: DurableObjectNamespace<import("./src/server").AssistantDirectory>;

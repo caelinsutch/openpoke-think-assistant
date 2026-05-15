@@ -64,3 +64,33 @@ describe("AI E2E — execution task runner", () => {
     expect(updatedTask.result?.toLowerCase()).toContain("scheduled hello");
   });
 });
+
+describe("AI E2E — Vectorize memory", () => {
+  it("recalls a memory through the Vectorize-backed memory profile", async () => {
+    const directory = await getAgentByName(
+      env.AssistantDirectory,
+      uniqueDirectoryName("vector-memory-e2e"),
+    );
+    const marker = `Vectorize E2E marker ${crypto.randomUUID()}`;
+
+    await directory.rememberMemory({
+      content: `${marker}: semantic memory belongs in Cloudflare Vectorize.`,
+    });
+
+    let result = await directory.recallMemory("semantic memory belongs in Cloudflare Vectorize", {
+      limit: 10,
+    });
+    for (
+      let attempt = 0;
+      attempt < 30 && !result.vectorMemories?.some((memory) => memory.content.includes(marker));
+      attempt++
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      result = await directory.recallMemory("semantic memory belongs in Cloudflare Vectorize", {
+        limit: 10,
+      });
+    }
+
+    expect(result.vectorMemories?.map((memory) => memory.content).join("\n")).toContain(marker);
+  });
+});
