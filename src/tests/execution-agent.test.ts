@@ -128,4 +128,45 @@ describe("AssistantDirectory — execution tasks and triggers", () => {
     expect(triggers).toHaveLength(1);
     expect(triggers[0].id).toBe(trigger.id);
   });
+
+  it("fires a stored trigger by routing its task through the owning execution agent", async () => {
+    const { directory, worker } = await directoryWithWorker();
+    const task = await directory.createExecutionTask({
+      agentId: worker.id,
+      title: "Prepare review",
+      instructions: "Summarize the workspace and identify blockers.",
+    });
+    const trigger = await directory.createExecutionTrigger({
+      agentId: worker.id,
+      taskId: task.id,
+      cron: "0 14 * * 1",
+    });
+
+    await directory.fireExecutionTrigger({ triggerId: trigger.id });
+
+    const [updatedTrigger] = await directory.listExecutionTriggers(worker.id);
+    expect(updatedTrigger).toMatchObject({
+      id: trigger.id,
+      agentId: worker.id,
+      taskId: task.id,
+      enabled: true,
+    });
+    expect(updatedTrigger.lastRunAt).toBeTypeOf("number");
+
+    const [updatedTask] = await directory.listExecutionTasks(worker.id);
+    expect(updatedTask).toMatchObject({
+      id: task.id,
+      agentId: worker.id,
+      status: "error",
+    });
+    expect(updatedTask.lastRunAt).toBeTypeOf("number");
+    expect(updatedTask.result).toBeTruthy();
+
+    const [updatedWorker] = await directory.listExecutionAgents();
+    expect(updatedWorker).toMatchObject({
+      id: worker.id,
+      status: "error",
+      lastResult: updatedTask.result,
+    });
+  });
 });

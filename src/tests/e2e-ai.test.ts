@@ -31,4 +31,36 @@ describe("AI E2E — execution task runner", () => {
     expect(result.status).toBe("done");
     expect(result.result?.toLowerCase()).toContain("hello");
   });
+
+  it("fires a scheduled trigger through its durable task", async () => {
+    const directory = await getAgentByName(
+      env.AssistantDirectory,
+      uniqueDirectoryName("ai-trigger-e2e"),
+    );
+    const worker = await directory.createExecutionAgent({
+      role: "reminder",
+      title: "AI trigger worker",
+      instructions: "Return concise deterministic status reports.",
+    });
+    const task = await directory.createExecutionTask({
+      agentId: worker.id,
+      title: "Triggered hello",
+      instructions: "Return the exact phrase: scheduled hello from execution agent",
+    });
+    const trigger = await directory.createExecutionTrigger({
+      agentId: worker.id,
+      taskId: task.id,
+      cron: "0 14 * * *",
+    });
+
+    await directory.fireExecutionTrigger({ triggerId: trigger.id });
+
+    const [updatedTrigger] = await directory.listExecutionTriggers(worker.id);
+    expect(updatedTrigger.lastRunAt).toBeTypeOf("number");
+
+    const [updatedTask] = await directory.listExecutionTasks(worker.id);
+    expect(updatedTask.status).toBe("done");
+    expect(updatedTask.lastRunAt).toBeTypeOf("number");
+    expect(updatedTask.result?.toLowerCase()).toContain("scheduled hello");
+  });
 });
